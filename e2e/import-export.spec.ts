@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { nodeByText } from './helpers';
+import { nodeByText, openSettings } from './helpers';
 
 async function openMap(page: Page) {
 	await page.goto('/workspace');
@@ -96,10 +96,12 @@ test('exports the map canvas as a png', async ({ page }) => {
 
 test('saves a profile and imports it back to restore the workspace', async ({ page }) => {
 	await openMap(page);
-	page.on('dialog', (dialog) => dialog.accept());
+
+	// Open the Preferences section, where Save/Import profile now lives.
+	const prefs = await openSettings(page, 'Preferences');
 
 	const downloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Save profile' }).click();
+	await prefs.getByRole('button', { name: 'Save profile' }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('mindmap-profile.json');
 	const profilePath = await download.path();
@@ -112,11 +114,17 @@ test('saves a profile and imports it back to restore the workspace', async ({ pa
 		const w = window.__mindmap!.workspace;
 		w.renameMap(w.maps[0].id, 'Changed');
 	});
-	await page.setInputFiles('input[data-testid="import-profile"]', {
+	await prefs.locator('input[data-testid="import-profile"]').setInputFiles({
 		name: 'mindmap-profile.json',
 		mimeType: 'application/json',
 		buffer: readFileSync(profilePath!)
 	});
+
+	// Import now confirms through the in-app dialog rather than a native one.
+	await page
+		.getByRole('dialog', { name: 'Replace local workspace?' })
+		.getByRole('button', { name: 'Replace' })
+		.click();
 
 	await page.waitForFunction(() => window.__mindmap!.workspace.maps[0].title === 'Your First Map');
 });

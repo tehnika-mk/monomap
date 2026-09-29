@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'mindmap:shortcuts';
 const GRID_KEY = 'mindmap:grid';
+const SNAP_KEY = 'mindmap:snap';
 
 function initialPref(key: string, defaultValue: boolean): boolean {
 	if (typeof localStorage !== 'undefined') {
@@ -10,28 +10,31 @@ function initialPref(key: string, defaultValue: boolean): boolean {
 }
 
 class SettingsState {
-	shortcutsEnabled = $state(true);
 	gridEnabled = $state(true);
+	snapEnabled = $state(false);
 
 	constructor() {
-		this.shortcutsEnabled = initialPref(STORAGE_KEY, true);
 		this.gridEnabled = initialPref(GRID_KEY, true);
+		this.snapEnabled = initialPref(SNAP_KEY, false);
 
 		$effect.root(() => {
 			$effect(() => {
 				if (typeof localStorage === 'undefined') return;
-				localStorage.setItem(STORAGE_KEY, String(this.shortcutsEnabled));
 				localStorage.setItem(GRID_KEY, String(this.gridEnabled));
+			});
+			$effect(() => {
+				if (typeof localStorage === 'undefined') return;
+				localStorage.setItem(SNAP_KEY, String(this.snapEnabled));
 			});
 		});
 	}
 
-	toggleShortcuts(): void {
-		this.shortcutsEnabled = !this.shortcutsEnabled;
-	}
-
 	toggleGrid(): void {
 		this.gridEnabled = !this.gridEnabled;
+	}
+
+	toggleSnap(): void {
+		this.snapEnabled = !this.snapEnabled;
 	}
 }
 

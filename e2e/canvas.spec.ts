@@ -200,3 +200,101 @@ test('clicking a node starts editing its text', async ({ page }) => {
 		'Central ideaBranch'
 	);
 });
+
+test('marquee drag selects multiple nodes', async ({ page }) => {
+	await openMap(page);
+
+	// Drag a box around the two seeded children.
+	const a = nodeByText(page, 'Node 1');
+	const b = nodeByText(page, 'Node 2');
+	const ba = await a.boundingBox();
+	const bb = await b.boundingBox();
+	expect(ba).not.toBeNull();
+	expect(bb).not.toBeNull();
+
+	const startX = Math.min(ba!.x, bb!.x) - 40;
+	const startY = Math.min(ba!.y, bb!.y) - 40;
+	const endX = Math.max(ba!.x + ba!.width, bb!.x + bb!.width) + 40;
+	const endY = Math.max(ba!.y + ba!.height, bb!.y + bb!.height) + 40;
+
+	await page.mouse.move(startX, startY);
+	await page.mouse.down();
+	await page.mouse.move(endX, endY, { steps: 8 });
+	await page.mouse.up();
+
+	const selected = await page.evaluate(() => {
+		const w = window.__mindmap!.workspace;
+		const root = w.maps[0].rootNode;
+		return {
+			ids: window.__mindmap!.canvas.selectedNodeIds,
+			children: root.children.map((c) => c.id)
+		};
+	});
+	expect(selected.ids).toEqual(selected.children);
+});
+
+test('dragging one selected node moves the whole selection', async ({ page }) => {
+	await openMap(page);
+
+	const childIds = await page.evaluate(() => {
+		const w = window.__mindmap!.workspace;
+		const root = w.maps[0].rootNode;
+		return [root.children[0].id, root.children[1].id];
+	});
+	await page.evaluate((ids) => window.__mindmap!.canvas.selectNodes(ids), childIds);
+
+	const before = await page.evaluate((ids) => {
+		const root = window.__mindmap!.workspace.maps[0].rootNode;
+		return ids.map((id) => {
+			const n = root.children.find((c) => c.id === id)!;
+			return { x: n.position.x, y: n.position.y };
+		});
+	}, childIds);
+
+	const node = nodeByText(page, 'Node 1');
+	const box = await node.boundingBox();
+	expect(box).not.toBeNull();
+	await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box!.x + box!.width / 2 + 120, box!.y + box!.height / 2 + 80, { steps: 8 });
+	await page.mouse.up();
+
+	const after = await page.evaluate((ids) => {
+		const root = window.__mindmap!.workspace.maps[0].rootNode;
+		return ids.map((id) => {
+			const n = root.children.find((c) => c.id === id)!;
+			return { x: n.position.x, y: n.position.y };
+		});
+	}, childIds);
+
+	expect(after[0].x - before[0].x).toBeGreaterThan(50);
+	expect(after[0].y - before[0].y).toBeGreaterThan(40);
+	// Both nodes moved by the same delta.
+	expect(after[1].x - before[1].x).toBeCloseTo(after[0].x - before[0].x, 0);
+	expect(after[1].y - before[1].y).toBeCloseTo(after[0].y - before[0].y, 0);
+});
+
+test('Delete removes all selected nodes', async ({ page }) => {
+	await openMap(page);
+
+	const childIds = await page.evaluate(() => {
+		const w = window.__mindmap!.workspace;
+		const root = w.maps[0].rootNode;
+		return [root.children[0].id, root.children[1].id];
+	});
+	await page.evaluate((ids) => window.__mindmap!.canvas.selectNodes(ids), childIds);
+
+	await page.keyboard.press('Delete');
+	await page.waitForFunction(() => window.__mindmap!.workspace.maps[0].rootNode.children.length === 0);
+
+	const state = await page.evaluate(() => {
+		const w = window.__mindmap!.workspace;
+		const c = window.__mindmap!.canvas;
+		return {
+			children: w.maps[0].rootNode.children.map((n) => n.id),
+			selected: c.selectedNodeIds
+		};
+	});
+	expect(state.children).toEqual([]);
+	expect(state.selected).toEqual([]);
+});

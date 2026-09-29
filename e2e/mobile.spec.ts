@@ -167,3 +167,21 @@ test('sidebar fits the viewport and closes via the backdrop', async ({ page }) =
 	await page.touchscreen.tap(370, 420);
 	await expect(sidebar).not.toBeVisible();
 });
+
+test('settings window is a bottom sheet with a horizontal section rail', async ({ page }) => {
+	await openMap(page);
+
+	await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+	await page.locator('[data-testid="sidebar-account"]').click();
+
+	const dialog = page.getByRole('dialog', { name: 'Account and settings' });
+	await expect(dialog).toBeVisible();
+
+	const rail = dialog.getByRole('tablist', { name: 'Settings sections' });
+	await expect(rail).toHaveAttribute('aria-orientation', 'horizontal');
+
+	const box = (await dialog.boundingBox())!;
+	expect(box.width).toBeGreaterThan(380);
+	// Docked to the bottom edge of the viewport.
+	expect(box.y + box.height).toBeGreaterThan(830);
+});

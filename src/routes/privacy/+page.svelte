@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LegalPage from '$lib/components/LegalPage.svelte';
+	import MarketingLayout from '$lib/components/marketing/MarketingLayout.svelte';
 </script>
 
 <svelte:head>
@@ -9,18 +10,32 @@
 	<link rel="canonical" href="https://monomap.app/privacy" />
 </svelte:head>
 
+<MarketingLayout>
 <LegalPage title="Privacy Policy" updated="August 2026">
 	<p>
 		This Privacy Policy explains what information MonoMap ("the app"), provided by Tehnika, collects
 		and how it is used. It applies to the website monomap.app and the MonoMap application.
 	</p>
 
-	<h2>Your data stays on your device</h2>
+	<h2>Your data stays on your device — unless you opt into cloud sync</h2>
 	<p>
 		MonoMap is a <strong>local-first</strong> application. Your mind maps, notes, settings and profile
-		backups are stored <strong>in your own browser</strong> (IndexedDB and local storage). They are never
-		sent to our servers, and there is no account, email address, or personal profile required to use the
-		app.
+		backups are stored <strong>in your own browser</strong> (IndexedDB and local storage). Free usage
+		requires no account and nothing is sent to our servers.
+	</p>
+	<p>
+		If you create an account and subscribe to <strong>MonoMap Pro</strong>, your maps and boards are synced
+		to the cloud so you can access them across your devices. This requires us to store your account
+		details and your map data on our cloud provider. You can cancel your subscription at any time; your
+		local copy of your work always stays on your device.
+	</p>
+
+	<h2>Accounts and cloud data</h2>
+	<p>
+		When you sign up for an account, we store your email address and a secure password hash to identify
+		you. With Pro, your maps and boards are stored in the cloud to enable cross-device sync, processed by
+		our cloud provider under their privacy terms. Billing is handled by our payment provider (AgentaOS),
+		which processes your payment details; we do not store your card number.
 	</p>
 
 	<h2>Analytics</h2>
@@ -40,8 +55,9 @@
 
 	<h2>What we do not collect</h2>
 	<p>
-		We do not collect your mind-map content, notes, or documents. We do not require an account. We do not
-		use advertising or sell data to third parties.
+		We do not collect your mind-map content unless you opt into Pro cloud sync, in which case that content
+		is stored to provide the service. We do not read your notes for advertising. We do not sell your data
+		to third parties. Free users provide no account and no personal data beyond anonymous analytics.
 	</p>
 
 	<h2>Cookies</h2>
@@ -52,8 +68,10 @@
 
 	<h2>Your rights</h2>
 	<p>
-		Because we store no personal data about you on our servers, there is little to access or delete. For
-		anything related to analytics data or your privacy, contact us and we will help.
+		You can request access to or deletion of the personal data associated with your account at any time.
+		Cancelling your Pro subscription stops cloud sync and your data remains available locally on your
+		device. For anything related to your account, analytics data, or your privacy, contact us and we will
+		help.
 	</p>
 
 	<h2>Changes to this policy</h2>
@@ -69,3 +87,4 @@
 		<a href="https://www.tehnika.mk" target="_blank" rel="noopener noreferrer">tehnika.mk</a>.
 	</p>
 </LegalPage>
+</MarketingLayout>

@@ -4,6 +4,7 @@
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { autoSortTree } from '$lib/utils/treeExport';
 	import { mergeTree, outlineFromTree, parseOutline } from '$lib/utils/mdSync';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	let ta = $state<HTMLTextAreaElement | null>(null);
 	let draft = $state('');
@@ -93,7 +94,7 @@
 				aria-label="Hide markdown editor"
 				onclick={() => (canvas.mdPaneOpen = false)}
 			>
-				&times;
+				<Icon name="x" size={14} />
 			</button>
 		</header>
 		<textarea
@@ -140,7 +141,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		font-weight: 600;
 	}
 
@@ -149,11 +150,11 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 16px;
+		font-size: calc(16px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 3px 7px;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 	}
 
 	.tool:hover,
@@ -167,11 +168,11 @@
 		margin: 10px 12px;
 		padding: 12px 14px;
 		border: 1px solid var(--edge);
-		border-radius: 10px;
+		border-radius: var(--r-md);
 		background: var(--surface-2);
 		color: var(--fg);
 		font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		line-height: 1.6;
 		resize: none;
 		outline: none;
@@ -191,7 +192,7 @@
 			max-height: 72vh;
 			border-right: none;
 			border-top: 1px solid var(--edge);
-			border-radius: 16px 16px 0 0;
+			border-radius: var(--r-lg) var(--r-lg) 0 0;
 			box-shadow: 0 -12px 32px rgb(0 0 0 / 0.18);
 			padding-bottom: env(safe-area-inset-bottom);
 		}

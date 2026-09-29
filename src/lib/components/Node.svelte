@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { MindNode } from '$lib/types';
+	import type { MindNode, Vec2 } from '$lib/types';
 	import { canvas } from '$lib/stores/canvas.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { normalizeUrl } from '$lib/utils/url';
+	import { findNode } from '$lib/utils/tree';
+	import { dragTargets } from '$lib/utils/grid';
 	import Node from './Node.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	let { node, depth }: { node: MindNode; depth: number } = $props();
 
@@ -12,11 +16,13 @@
 	let textEl = $state<HTMLSpanElement | null>(null);
 	let editing = $state(false);
 	let startText = '';
-	let lastX = 0;
-	let lastY = 0;
 	let moved = false;
+	// Drag is computed from the pointer's start point and each node's original
+	// position, so snapping the target never accumulates rounding error.
+	let dragStart: { x: number; y: number } | null = null;
+	let dragOrigins: Array<{ id: string; origin: Vec2 }> = [];
 
-	const selected = $derived(canvas.selectedNodeId === node.id);
+	const selected = $derived(canvas.isSelected(node.id));
 	const color = $derived(node.style?.color);
 	const icon = $derived(node.style?.icon);
 
@@ -40,11 +46,20 @@
 			editing = true;
 			startText = node.text;
 			requestAnimationFrame(() => {
-				if (textEl) {
-					textEl.textContent = node.text;
-					textEl.focus();
-					placeCaretAtEnd(textEl);
+				// Skip if editing stopped or the user already focused another field
+				// (e.g. the notes panel) before this frame ran, so we never steal
+				// focus back from them.
+				if (canvas.editingNodeId !== node.id || !textEl) return;
+				const active = document.activeElement as HTMLElement | null;
+				if (
+					active &&
+					(active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
+				) {
+					return;
 				}
+				textEl.textContent = node.text;
+				textEl.focus();
+				placeCaretAtEnd(textEl);
 			});
 		} else if (editing) {
 			editing = false;
@@ -65,31 +80,47 @@
 		if (canvas.editingNodeId === node.id) return;
 		if (canvas.spaceDown) return;
 		e.stopPropagation();
-		canvas.selectNode(node.id);
+		if (e.shiftKey) {
+			canvas.toggleNodeSelection(node.id);
+			if (!canvas.isSelected(node.id)) return; // shift-click deselected it: no drag
+		} else if (!canvas.isSelected(node.id)) {
+			canvas.selectNode(node.id);
+		}
 		moved = false;
-		lastX = e.clientX;
-		lastY = e.clientY;
+		dragStart = { x: e.clientX, y: e.clientY };
+		captureDragOrigins();
 		el?.setPointerCapture(e.pointerId);
+	}
+
+	function captureDragOrigins() {
+		dragOrigins = [];
+		const root = workspace.getActiveMap()?.rootNode;
+		if (!root) return;
+		for (const id of canvas.selectedNodeIds) {
+			const found = findNode(root, id);
+			if (found) dragOrigins.push({ id, origin: { x: found.position.x, y: found.position.y } });
+		}
 	}
 
 	function onPointerMove(e: PointerEvent) {
 		if (el?.hasPointerCapture(e.pointerId) !== true) return;
-		const dx = e.clientX - lastX;
-		const dy = e.clientY - lastY;
-		if (dx === 0 && dy === 0) return;
+		if (!dragStart) return;
+		const dx = e.clientX - dragStart.x;
+		const dy = e.clientY - dragStart.y;
 		if (!moved && Math.hypot(dx, dy) < 4) return; // small movement = still a click
 		moved = true;
-		workspace.setNodePosition(node.id, {
-			x: node.position.x + dx / canvas.zoom,
-			y: node.position.y + dy / canvas.zoom
-		});
-		lastX = e.clientX;
-		lastY = e.clientY;
+		const wx = dx / canvas.zoom;
+		const wy = dy / canvas.zoom;
+		workspace.setNodePositions(dragTargets(dragOrigins, wx, wy, settings.snapEnabled));
 	}
 
 	function onPointerUp(e: PointerEvent) {
 		if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-		if (!moved && canvas.editingNodeId !== node.id) canvas.startEditing(node.id);
+		dragStart = null;
+		dragOrigins = [];
+		if (!moved && canvas.editingNodeId !== node.id && canvas.selectedNodeIds.length === 1) {
+			canvas.startEditing(node.id);
+		}
 	}
 
 	function onTextKeydown(e: KeyboardEvent) {
@@ -166,11 +197,11 @@
 			onmousedown={(e) => e.stopPropagation()}
 			onclick={(e) => e.stopPropagation()}
 		>
-			🔗
+			<Icon name="link" size={12} />
 		</a>
 	{/if}
 	{#if node.notes}
-		<span class="node-note" title="Has notes" aria-label="Has notes">📝</span>
+		<span class="node-note" title="Has notes" aria-label="Has notes"><Icon name="note" size={12} /></span>
 	{/if}
 	<button
 		type="button"
@@ -203,7 +234,7 @@
 		align-items: center;
 		gap: 6px;
 		padding: 6px 12px;
-		border-radius: 10px;
+		border-radius: var(--r-md);
 		background: var(--node-bg);
 		border: 1.5px solid var(--node-edge);
 		box-shadow: var(--node-shadow);
@@ -220,13 +251,6 @@
 		cursor: grabbing;
 	}
 
-	.node.selected {
-		box-shadow:
-			0 4px 16px -4px rgb(0 0 0 / 0.28),
-			var(--node-shadow);
-		background: color-mix(in srgb, var(--surface-2) 60%, var(--node-bg));
-	}
-
 	.node.editing {
 		cursor: text;
 		user-select: text;
@@ -237,13 +261,22 @@
 		background: color-mix(in srgb, var(--node-color) 7%, var(--node-bg));
 	}
 
+	.node.selected {
+		border-color: var(--accent);
+		box-shadow:
+			0 0 0 2px var(--accent),
+			0 4px 16px -4px rgb(0 0 0 / 0.28),
+			var(--node-shadow);
+		background: color-mix(in srgb, var(--accent) 12%, var(--node-bg));
+	}
+
 	.node-icon {
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		line-height: 1;
 	}
 
 	.node-text {
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		font-weight: 500;
 		line-height: 1.4;
 		min-width: 1ch;
@@ -258,7 +291,7 @@
 	}
 
 	.node-link {
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		color: var(--muted);
 		opacity: 0.85;
 		line-height: 1;
@@ -271,7 +304,7 @@
 	}
 
 	.node-note {
-		font-size: 10px;
+		font-size: calc(10px + var(--font-bump));
 		line-height: 1;
 		opacity: 0.7;
 	}
@@ -291,7 +324,7 @@
 		border-radius: 9999px;
 		background: var(--surface);
 		color: var(--accent);
-		font-size: 14px;
+		font-size: calc(14px + var(--font-bump));
 		font-weight: 600;
 		line-height: 1;
 		cursor: pointer;
@@ -323,7 +356,7 @@
 			height: 26px;
 			right: -13px;
 			bottom: -13px;
-			font-size: 16px;
+			font-size: calc(16px + var(--font-bump));
 		}
 	}
 </style>

@@ -80,7 +80,8 @@ test('notes are plain text and show a node note badge', async ({ page }) => {
 	expect(notes).toBe('Just some plain notes\nsecond line');
 
 	// the node now shows a note badge
-	await expect(page.locator('[data-node] .node-note')).toHaveText('📝');
+	await expect(page.locator('[data-node] .node-note')).toBeVisible();
+	await expect(page.locator('[data-node] .node-note svg')).toBeVisible();
 });
 
 test('shift+enter creates multiline nodes', async ({ page }) => {

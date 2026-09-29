@@ -57,11 +57,11 @@
 	input {
 		width: 100%;
 		padding: 6px 10px;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		border: 1px solid var(--edge);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		outline: none;
 	}
 
@@ -85,8 +85,8 @@
 		height: 32px;
 		border: none;
 		background: transparent;
-		border-radius: 6px;
-		font-size: 17px;
+		border-radius: var(--r-sm);
+		font-size: calc(17px + var(--font-bump));
 		cursor: pointer;
 		transition: background 0.1s ease;
 	}
@@ -103,7 +103,7 @@
 		grid-column: 1 / -1;
 		text-align: center;
 		color: var(--muted);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		padding: 8px;
 	}
 </style>

@@ -1,11 +1,12 @@
 {
 	"name": "mind-map",
 	"private": true,
-	"version": "1.0",
+	"version": "1.1",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build",
+		"clean": "node scripts/clean.mjs",
+		"build": "npm run clean && vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -13,7 +14,11 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
 		"test:e2e": "playwright test",
-		"og:image": "node scripts/og-image.mjs"
+		"og:image": "node scripts/og-image.mjs",
+		"supabase:login": "npx --yes supabase@2.117.0 login",
+		"deploy:functions": "node scripts/supabase.mjs functions deploy --use-api",
+		"deploy:db": "node scripts/supabase.mjs db push",
+		"deploy:supabase": "npm run deploy:db && npm run deploy:functions"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.62.1",
@@ -29,6 +34,7 @@
 		"vitest": "^4.1.8"
 	},
 	"dependencies": {
+		"@supabase/supabase-js": "^2.112.3",
 		"html-to-image": "^1.11.13",
 		"idb-keyval": "^6.3.0"
 	}

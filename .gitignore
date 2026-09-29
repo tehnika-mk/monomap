@@ -7,9 +7,26 @@
 # build output
 /build
 
+# local media
+/video
+
 # local env files
 .env
 .env.*
+
+# local deploy probes / test output
+/.deployprobe
+/test-results
+/playwright-report
+
+# generated Supabase CLI state (project ref, org id)
+/supabase/.temp
+
+# private / internal docs & tooling
+/audit.md
+/Revenue & Billing Audit_ MonoMap.pdf
+/design-system
+/skills-lock.json
 
 # logs
 *.log

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500" role="img" aria-label="MonoMap logo">
+  <mask id="hole">
+    <rect x="0" y="0" width="500" height="500" fill="#fff"/>
+    <circle cx="250" cy="250" r="70.3125" fill="#000"/>
+  </mask>
+  <circle cx="250" cy="250" r="125" fill="#3b82f6" mask="url(#hole)"/>
+</svg>

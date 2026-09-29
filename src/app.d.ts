@@ -14,6 +14,11 @@ declare global {
 		__mindmap?: {
 			workspace: import('$lib/stores/workspace.svelte').WorkspaceState;
 			canvas: import('$lib/stores/canvas.svelte').CanvasState;
+			auth: import('$lib/stores/auth.svelte').AuthState;
+			sync: import('$lib/stores/sync.svelte').SyncState;
+			versions: import('$lib/stores/versions.svelte').VersionsState;
+			account: import('$lib/stores/account.svelte').AccountState;
+			kanban: import('$lib/stores/kanban.svelte').KanbanState;
 		};
 	}
 }

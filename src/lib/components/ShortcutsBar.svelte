@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { canvas } from '$lib/stores/canvas.svelte';
-	import { settings } from '$lib/stores/settings.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { countNodes } from '$lib/utils/tree';
@@ -11,10 +10,10 @@
 		return countNodes(map.rootNode) === 1;
 	});
 
-	const barLeft = $derived(ui.isCompact ? '50%' : canvas.mdPaneOpen ? 'calc(50% + 326px)' : '50%');
+	const barLeft = $derived(canvas.mdPaneOpen ? 'calc(50% + 326px)' : '50%');
 </script>
 
-{#if !ui.isCompact && settings.shortcutsEnabled}
+{#if workspace.viewMode === 'mindmap' && !ui.isCompact}
 	<div class="bar" style:left={barLeft}>
 		{#if freshMap}
 			<span class="item">Press <kbd>Tab</kbd> to add a node</span>
@@ -31,16 +30,6 @@
 		<span class="item"><kbd>Del</kbd> delete</span>
 		<span class="sep">·</span>
 		<span class="item"><kbd>Ctrl/⌘ 0</kbd> center</span>
-		<span class="sep">·</span>
-		<button
-			type="button"
-			class="action hide"
-			title="Hide shortcuts"
-			aria-label="Hide shortcuts"
-			onclick={() => settings.toggleShortcuts()}
-		>
-			&times;
-		</button>
 	</div>
 {/if}
 
@@ -59,12 +48,12 @@
 		gap: 8px;
 		max-width: calc(100vw - 640px);
 		padding: 7px 12px;
-		border-radius: 9999px;
+		border-radius: var(--r-md);
 		background: var(--surface);
 		border: 1px solid var(--edge);
 		box-shadow: var(--node-shadow);
 		color: var(--muted);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		overflow: hidden;
 	}
 
@@ -80,7 +69,7 @@
 
 	kbd {
 		font-family: inherit;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		font-weight: 600;
 		color: var(--fg);
 		background: var(--surface-2);
@@ -88,29 +77,5 @@
 		border-bottom-width: 2px;
 		border-radius: 4px;
 		padding: 1px 5px;
-	}
-
-	.action {
-		border: none;
-		background: transparent;
-		color: var(--accent);
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-		padding: 2px 4px;
-		border-radius: 4px;
-	}
-
-	.action:hover {
-		background: var(--surface-2);
-	}
-
-	.action.hide {
-		color: var(--muted);
-		font-weight: 400;
-	}
-
-	.action.hide:hover {
-		color: var(--fg);
 	}
 </style>

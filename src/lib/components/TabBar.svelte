@@ -2,10 +2,11 @@
 	import { canvas } from '$lib/stores/canvas.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { workspace } from '$lib/stores/workspace.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	const tabs = $derived(workspace.openTabs);
 	const activeTabId = $derived(workspace.activeTabId);
-	const visible = $derived(tabs.length > 1);
+	const visible = $derived(tabs.length > 1 && workspace.viewMode === 'mindmap');
 	const tabLeft = $derived(ui.isCompact ? '50%' : canvas.mdPaneOpen ? 'calc(50% + 326px)' : '50%');
 
 	function title(id: string) {
@@ -48,7 +49,7 @@
 						}
 					}}
 				>
-					&times;
+					<Icon name="x" size={12} />
 				</span>
 			</button>
 		{/each}
@@ -59,7 +60,7 @@
 			aria-label="New map"
 			onclick={() => workspace.createMap()}
 		>
-			＋
+			<Icon name="plus" size={15} />
 		</button>
 	</div>
 {/if}
@@ -67,25 +68,25 @@
 <style>
 	.tabbar {
 		position: absolute;
-		top: 10px;
+		top: 58px;
 		left: 50%;
 		transform: translateX(-50%);
-		z-index: 35;
+		z-index: var(--z-panel);
 		display: flex;
 		align-items: center;
 		gap: 2px;
 		padding: 4px;
-		border-radius: 10px;
+		border-radius: var(--r-md);
 		background: var(--surface);
 		border: 1px solid var(--edge);
-		box-shadow: 0 4px 16px rgb(0 0 0 / 0.1);
+		box-shadow: var(--shadow-2);
 		max-width: min(70vw, 720px);
 		overflow-x: auto;
 	}
 
 	@media (max-width: 640px) {
 		.tabbar {
-			top: calc(env(safe-area-inset-top) + 8px);
+			top: calc(env(safe-area-inset-top) + 58px);
 			max-width: calc(100vw - 24px);
 		}
 	}
@@ -96,10 +97,10 @@
 		gap: 6px;
 		padding: 5px 8px;
 		border: none;
-		border-radius: 7px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--muted);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 		max-width: 180px;
 		white-space: nowrap;
@@ -128,7 +129,7 @@
 		width: 16px;
 		height: 16px;
 		border-radius: 4px;
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		line-height: 1;
 		color: var(--muted);
 	}
@@ -145,10 +146,10 @@
 		width: 26px;
 		height: 26px;
 		border: none;
-		border-radius: 7px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--muted);
-		font-size: 14px;
+		font-size: calc(14px + var(--font-bump));
 		cursor: pointer;
 	}
 
