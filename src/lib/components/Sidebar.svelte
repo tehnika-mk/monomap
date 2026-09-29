@@ -4,20 +4,58 @@
 	import { canvas } from '$lib/stores/canvas.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { workspace } from '$lib/stores/workspace.svelte';
-	import PreferencesModal from './PreferencesModal.svelte';
+	import { sync } from '$lib/stores/sync.svelte';
+	import AuthModal from './AuthModal.svelte';
+	import VersionHistoryModal from './VersionHistoryModal.svelte';
+	import ShareModal from './ShareModal.svelte';
+	import WorkspaceSwitch from './WorkspaceSwitch.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
+	import SettingsWindow from './settings/SettingsWindow.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
+	import { account } from '$lib/stores/account.svelte';
+	import { isStudio } from '$lib/supabase';
 	import { downloadText, safeFilename } from '$lib/utils/download';
 	import { exportMapPng } from '$lib/utils/exportPng';
 	import { autoSortTree, mapToMarkdown, parseMarkdownTree } from '$lib/utils/treeExport';
+	import { clickOutside } from '$lib/actions/clickOutside';
 
-	let showPreferences = $state(false);
+	let showAuth = $state(false);
+	let versionFor = $state<{ kind: 'map' | 'board'; id: string } | null>(null);
+	let shareFor = $state<{ kind: 'board' | 'map'; id: string } | null>(null);
 
 	// Folder creation is temporarily hidden; existing folders still render.
 	const foldersEnabled = false;
 
+	const accountLabel = $derived(auth.signedIn ? auth.displayName : 'Account & Settings');
+	const planLabel = $derived(auth.pro ? (isStudio(auth.profile) ? 'Studio' : 'Pro') : 'Free');
+	const statusLabel = $derived.by(() => {
+		if (!auth.signedIn) return 'Local Only · Register to Sync';
+		if (!auth.pro) return 'Registered · Upgrade to Sync';
+		if (sync.status === 'syncing') return 'Registered · Syncing…';
+		if (sync.status === 'offline') return 'Registered · Sync Offline';
+		return 'Registered · Sync Enabled';
+	});
+
 	$effect(() => {
-		const onClosePrefs = () => (showPreferences = false);
-		window.addEventListener('mindmap:close-preferences', onClosePrefs);
-		return () => window.removeEventListener('mindmap:close-preferences', onClosePrefs);
+		const onCloseAuth = () => (showAuth = false);
+		window.addEventListener('mindmap:close-auth', onCloseAuth);
+		return () => window.removeEventListener('mindmap:close-auth', onCloseAuth);
+	});
+
+	$effect(() => {
+		const onOpenAuth = () => (showAuth = true);
+		window.addEventListener('mindmap:open-auth', onOpenAuth);
+		return () => window.removeEventListener('mindmap:open-auth', onOpenAuth);
+	});
+
+	$effect(() => {
+		if (!auth.initialized || !auth.pendingUpgrade) return;
+		if (auth.signedIn) {
+			auth.pendingUpgrade = false;
+			account.show('plan');
+		} else {
+			showAuth = true;
+		}
 	});
 
 	const maps = $derived(workspace.maps);
@@ -27,7 +65,6 @@
 	const activeBoardId = $derived(workspace.activeBoardId);
 	const open = $derived(canvas.sidebarOpen);
 	const unassigned = $derived(maps.filter((m) => !m.folderId));
-	const heading = $derived(workspace.viewMode === 'kanban' ? 'Kanban' : 'Mind Map');
 	const isMindMap = $derived(workspace.viewMode !== 'kanban');
 
 	let expanded = $state<Record<string, boolean>>({});
@@ -150,7 +187,7 @@
 	{/if}
 	<div class="panel" role="complementary" aria-label="Maps sidebar" transition:slide={{ duration: 160 }}>
 		<header>
-			<span class="heading">{heading}</span>
+			<WorkspaceSwitch />
 			<button
 				type="button"
 				class="icon-btn"
@@ -158,7 +195,7 @@
 				aria-label="Close sidebar"
 				onclick={() => (canvas.sidebarOpen = false)}
 			>
-				‹
+				<Icon name="chevron-left" size={16} />
 			</button>
 		</header>
 
@@ -172,7 +209,7 @@
 					title="Toggle MD Editor"
 					onclick={() => (canvas.mdPaneOpen = !canvas.mdPaneOpen)}
 				>
-					<span class="glyph">≔</span>
+					<span class="glyph"><Icon name="align-left" size={15} /></span>
 					<span class="label">MD Editor</span>
 				</button>
 			{/if}
@@ -186,7 +223,7 @@
 				ondrop={(e) => onDrop(e, 'root')}
 				onclick={() => workspace.createMap()}
 			>
-				<span class="glyph">＋</span>
+				<span class="glyph"><Icon name="plus" size={15} /></span>
 				<span class="label">New map</span>
 			</button>
 
@@ -208,19 +245,19 @@
 					/>
 				{:else}
 					<button type="button" class="tree-row" onclick={() => (addingFolder = true)}>
-						<span class="glyph">＋</span>
+						<span class="glyph"><Icon name="plus" size={15} /></span>
 						<span class="label">New folder</span>
 					</button>
 				{/if}
 			{/if}
 
 			<button type="button" class="tree-row" onclick={() => workspace.createBoard()}>
-				<span class="glyph">＋</span>
+				<span class="glyph"><Icon name="plus" size={15} /></span>
 				<span class="label">New Kanban Board</span>
 			</button>
 
 			<button type="button" class="tree-row" disabled={importing} onclick={() => fileInput?.click()}>
-				<span class="glyph">{importing ? '…' : '⇪'}</span>
+				<span class="glyph"><Icon name={importing ? 'clock' : 'upload'} size={15} /></span>
 				<span class="label">{importing ? 'Importing…' : 'Import .md / .txt'}</span>
 			</button>
 			<input
@@ -264,9 +301,9 @@
 								expanded[folder.id] = !folderExpanded(folder.id);
 							}}
 						>
-							{folderExpanded(folder.id) ? '▾' : '▸'}
+							<Icon name={folderExpanded(folder.id) ? 'chevron-down' : 'chevron-right'} size={13} />
 						</button>
-						<span class="glyph">📁</span>
+						<span class="glyph"><Icon name="folder" size={15} /></span>
 						{#if renaming?.type === 'folder' && renaming.id === folder.id}
 							<input
 								class="rename-input"
@@ -274,6 +311,7 @@
 								use:autofocus
 								onclick={(e) => e.stopPropagation()}
 								onkeydown={(e) => {
+									e.stopPropagation();
 									if (e.key === 'Enter') commitRename();
 									if (e.key === 'Escape') renaming = null;
 								}}
@@ -283,36 +321,43 @@
 							<span class="label">{folder.name}</span>
 						{/if}
 						<span class="count">{folderMaps(folder.id).length}</span>
-						<button
-							type="button"
-							class="menu-btn"
-							aria-label="Folder actions"
-							onclick={(e) => {
-								e.stopPropagation();
-								folderMenuFor = folderMenuFor === folder.id ? null : folder.id;
-								menuFor = null;
-								boardMenuFor = null;
+						<div
+							class="menu-wrap"
+							use:clickOutside={() => {
+								if (folderMenuFor === folder.id) folderMenuFor = null;
 							}}
-							ondblclick={(e) => e.stopPropagation()}
 						>
-							⋯
-						</button>
-						{#if folderMenuFor === folder.id}
-							<div class="menu">
-								<button type="button" onclick={() => startRename('folder', folder.id, folder.name)}>
-									Rename
-								</button>
-								<button
-									type="button"
-									onclick={() => {
-										workspace.deleteFolder(folder.id);
-										folderMenuFor = null;
-									}}
-								>
-									Delete
-								</button>
-							</div>
-						{/if}
+							<button
+								type="button"
+								class="menu-btn"
+								aria-label="Folder actions"
+								onclick={(e) => {
+									e.stopPropagation();
+									folderMenuFor = folderMenuFor === folder.id ? null : folder.id;
+									menuFor = null;
+									boardMenuFor = null;
+								}}
+								ondblclick={(e) => e.stopPropagation()}
+							>
+								<Icon name="more-horizontal" size={16} />
+							</button>
+							{#if folderMenuFor === folder.id}
+								<div class="menu">
+									<button type="button" onclick={() => startRename('folder', folder.id, folder.name)}>
+										Rename
+									</button>
+									<button
+										type="button"
+										onclick={() => {
+											workspace.deleteFolder(folder.id);
+											folderMenuFor = null;
+										}}
+									>
+										Delete
+									</button>
+								</div>
+							{/if}
+						</div>
 					</div>
 
 					{#if folderExpanded(folder.id)}
@@ -340,14 +385,75 @@
 			{/each}
 		</div>
 
-		<button type="button" class="tree-row prefs-row" onclick={() => (showPreferences = true)}>
-			<span class="glyph">⚙</span>
-			<span class="label">Preferences</span>
+		{#if sync.nudge}
+			<div class="nudge">
+				<button type="button" class="nudge-text" onclick={() => account.show('plan')}>
+					Your maps are on your other device. Sync them for €3.99/month.
+				</button>
+				<button
+					type="button"
+					class="nudge-x"
+					aria-label="Dismiss"
+					onclick={() => sync.dismissNudge()}
+				>
+					<Icon name="x" size={14} />
+				</button>
+			</div>
+		{/if}
+		<button
+			type="button"
+			class="account-row"
+			data-testid="sidebar-account"
+			aria-haspopup="dialog"
+			aria-label="Account & settings"
+			onclick={() => account.show(auth.signedIn ? 'profile' : 'preferences')}
+		>
+			<span class="account-avatar" aria-hidden="true">
+				{#if auth.signedIn}
+					{auth.initials}
+				{:else}
+					<Icon name="user" size={15} />
+				{/if}
+			</span>
+			<span class="account-name" title={accountLabel}>{accountLabel}</span>
+			{#if auth.signedIn}
+				<span class="account-badge" class:pro={auth.pro}>{planLabel}</span>
+			{/if}
 		</button>
+
+		{#if auth.signedIn && auth.pro}
+			<button type="button" class="status-hint" onclick={() => account.show('plan')}>
+				<span
+					class="status-dot"
+					class:synced={sync.status === 'synced'}
+					class:offline={sync.status === 'offline'}
+				></span>
+				<span class="status-text">{statusLabel}</span>
+			</button>
+		{:else}
+			<button
+				type="button"
+				class="status-hint"
+				onclick={() => account.show(auth.signedIn ? 'plan' : 'account')}
+			>
+				<span class="status-dot" class:registered={auth.signedIn}></span>
+				<span class="status-text">{statusLabel}</span>
+			</button>
+		{/if}
 	</div>
 
-	{#if showPreferences}
-		<PreferencesModal />
+	{#if showAuth}
+		<AuthModal />
+	{/if}
+	{#if versionFor}
+		<VersionHistoryModal
+			kind={versionFor.kind}
+			id={versionFor.id}
+			onclose={() => (versionFor = null)}
+		/>
+	{/if}
+	{#if shareFor}
+		<ShareModal kind={shareFor.kind} id={shareFor.id} onclose={() => (shareFor = null)} />
 	{/if}
 {:else}
 	<button
@@ -357,9 +463,11 @@
 		aria-label="Toggle sidebar"
 		onclick={() => (canvas.sidebarOpen = true)}
 	>
-		☰
+		<Icon name="menu" size={18} />
 	</button>
 {/if}
+
+<SettingsWindow />
 
 {#snippet MapRow(map: MapData)}
 	<div
@@ -390,6 +498,7 @@
 				use:autofocus
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => {
+					e.stopPropagation();
 					if (e.key === 'Enter') commitRename();
 					if (e.key === 'Escape') renaming = null;
 				}}
@@ -398,21 +507,27 @@
 		{:else}
 			<span class="label" title={map.title}>{map.title}</span>
 		{/if}
-		<button
-			type="button"
-			class="menu-btn"
-			aria-label={`Actions for ${map.title}`}
-			onclick={(e) => {
-				e.stopPropagation();
-				menuFor = menuFor === map.id ? null : map.id;
-				folderMenuFor = null;
+		<div
+			class="menu-wrap"
+			use:clickOutside={() => {
+				if (menuFor === map.id) menuFor = null;
 			}}
-			ondblclick={(e) => e.stopPropagation()}
 		>
-			⋯
-		</button>
-		{#if menuFor === map.id}
-			<div class="menu">
+			<button
+				type="button"
+				class="menu-btn"
+				aria-label={`Actions for ${map.title}`}
+				onclick={(e) => {
+					e.stopPropagation();
+					menuFor = menuFor === map.id ? null : map.id;
+					folderMenuFor = null;
+				}}
+				ondblclick={(e) => e.stopPropagation()}
+			>
+				<Icon name="more-horizontal" size={16} />
+			</button>
+			{#if menuFor === map.id}
+				<div class="menu">
 				<button type="button" onclick={() => startRename('map', map.id, map.title)}>Rename</button>
 				<button
 					type="button"
@@ -443,16 +558,36 @@
 				</button>
 				<button
 					type="button"
+					onclick={() => {
+						versionFor = { kind: 'map', id: map.id };
+						menuFor = null;
+					}}
+				>
+					Version history…
+				</button>
+				<button
+					type="button"
+					onclick={() => {
+						shareFor = { kind: 'map', id: map.id };
+						menuFor = null;
+					}}
+				>
+					Share by link…
+				</button>
+				<button
+					type="button"
 					class="danger"
 					onclick={() => {
 						workspace.deleteMap(map.id);
+						sync.noteMapDeleted(map.id);
 						menuFor = null;
 					}}
 				>
 					Delete
 				</button>
-			</div>
-		{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 {/snippet}
 
@@ -483,6 +618,7 @@
 				use:autofocus
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => {
+					e.stopPropagation();
 					if (e.key === 'Enter') commitRename();
 					if (e.key === 'Escape') renaming = null;
 				}}
@@ -492,37 +628,72 @@
 			<span class="label" title={board.title}>{board.title}</span>
 		{/if}
 		<span class="count">{board.columns.length}</span>
-		<button
-			type="button"
-			class="menu-btn"
-			aria-label={`Actions for ${board.title}`}
-			onclick={(e) => {
-				e.stopPropagation();
-				boardMenuFor = boardMenuFor === board.id ? null : board.id;
-				menuFor = null;
-				folderMenuFor = null;
+		<div
+			class="menu-wrap"
+			use:clickOutside={() => {
+				if (boardMenuFor === board.id) boardMenuFor = null;
 			}}
-			ondblclick={(e) => e.stopPropagation()}
 		>
-			⋯
-		</button>
-		{#if boardMenuFor === board.id}
-			<div class="menu">
-				<button type="button" onclick={() => startRename('board', board.id, board.title)}>
-					Rename
-				</button>
-				<button
-					type="button"
-					class="danger"
-					onclick={() => {
-						workspace.deleteBoard(board.id);
-						boardMenuFor = null;
-					}}
-				>
-					Delete
-				</button>
-			</div>
-		{/if}
+			<button
+				type="button"
+				class="menu-btn"
+				aria-label={`Actions for ${board.title}`}
+				onclick={(e) => {
+					e.stopPropagation();
+					boardMenuFor = boardMenuFor === board.id ? null : board.id;
+					menuFor = null;
+					folderMenuFor = null;
+				}}
+				ondblclick={(e) => e.stopPropagation()}
+			>
+				<Icon name="more-horizontal" size={16} />
+			</button>
+			{#if boardMenuFor === board.id}
+				<div class="menu">
+					<button type="button" onclick={() => startRename('board', board.id, board.title)}>
+						Rename
+					</button>
+					<button
+						type="button"
+						onclick={() => {
+							workspace.duplicateBoard(board.id);
+							boardMenuFor = null;
+						}}
+					>
+						Duplicate
+					</button>
+					<button
+						type="button"
+						onclick={() => {
+							versionFor = { kind: 'board', id: board.id };
+							boardMenuFor = null;
+						}}
+					>
+						Version history…
+					</button>
+					<button
+						type="button"
+						onclick={() => {
+							shareFor = { kind: 'board', id: board.id };
+							boardMenuFor = null;
+						}}
+					>
+						Share by link…
+					</button>
+					<button
+						type="button"
+						class="danger"
+						onclick={() => {
+							workspace.deleteBoard(board.id);
+							sync.noteBoardDeleted(board.id);
+							boardMenuFor = null;
+						}}
+					>
+						Delete
+					</button>
+				</div>
+			{/if}
+		</div>
 	</div>
 {/snippet}
 
@@ -533,7 +704,7 @@
 		left: 0;
 		bottom: 0;
 		width: 272px;
-		z-index: 40;
+		z-index: var(--z-sidebar);
 		display: flex;
 		flex-direction: column;
 		background: var(--surface);
@@ -544,7 +715,7 @@
 	.backdrop {
 		position: absolute;
 		inset: 0;
-		z-index: 39;
+		z-index: var(--z-panel);
 		background: rgb(0 0 0 / 0.3);
 	}
 
@@ -559,25 +730,21 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 8px;
 		height: 48px;
-		padding: 0 14px;
+		padding: 0 8px 0 12px;
 		border-bottom: 1px solid var(--edge);
-	}
-
-	.heading {
-		font-size: 13px;
-		font-weight: 600;
 	}
 
 	.icon-btn {
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 20px;
+		font-size: calc(20px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 2px 8px;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 	}
 
 	.icon-btn:hover {
@@ -602,10 +769,10 @@
 		width: 100%;
 		padding: 6px 8px;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		text-align: left;
 		cursor: pointer;
 		transition: background 0.1s ease;
@@ -624,10 +791,154 @@
 		background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
 	}
 
-	.prefs-row {
-		margin: 4px 8px 8px;
+	.account-row {
+		display: flex;
+		align-items: center;
+		gap: 9px;
 		width: calc(100% - 16px);
+		margin: 4px 8px 2px;
+		padding: 8px 10px;
 		border: 1px solid var(--edge);
+		border-radius: var(--r-sm);
+		background: transparent;
+		color: var(--fg);
+		font-size: calc(13px + var(--font-bump));
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.account-row:hover {
+		background: var(--surface-2);
+	}
+
+	.account-avatar {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 9999px;
+		background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+		color: var(--accent);
+		font-size: calc(11px + var(--font-bump));
+		font-weight: 600;
+	}
+
+	.account-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-weight: 600;
+	}
+
+	.account-badge {
+		flex: none;
+		font-size: calc(9.5px + var(--font-bump));
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+		background: var(--surface-2);
+		border-radius: var(--r-xs);
+		padding: 2px 7px;
+	}
+
+	.account-badge.pro {
+		color: var(--accent-fg);
+		background: var(--accent);
+	}
+
+	.status-hint {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		width: calc(100% - 16px);
+		margin: 0 8px 8px;
+		padding: 6px 10px;
+		border: none;
+		border-radius: var(--r-sm);
+		background: transparent;
+		color: var(--muted);
+		font-size: calc(11.5px + var(--font-bump));
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.status-hint:hover {
+		background: var(--surface-2);
+		color: var(--fg);
+	}
+
+	.status-dot {
+		flex: none;
+		width: 7px;
+		height: 7px;
+		border-radius: 9999px;
+		background: var(--edge);
+	}
+
+	.status-dot.registered {
+		background: var(--warn);
+	}
+
+	.status-dot.synced {
+		background: var(--success);
+	}
+
+	.status-dot.offline {
+		background: var(--danger);
+	}
+
+	.status-text {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.nudge {
+		display: flex;
+		align-items: stretch;
+		gap: 2px;
+		margin: 0 8px 4px;
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--edge));
+		border-radius: var(--r-sm);
+		background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+		overflow: hidden;
+	}
+
+	.nudge-text {
+		flex: 1;
+		border: none;
+		background: transparent;
+		color: var(--fg);
+		font-size: calc(11.5px + var(--font-bump));
+		line-height: 1.45;
+		text-align: left;
+		padding: 8px 10px;
+		cursor: pointer;
+	}
+
+	.nudge-text:hover {
+		color: var(--accent);
+	}
+
+	.nudge-x {
+		flex: none;
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: calc(15px + var(--font-bump));
+		padding: 0 8px;
+		cursor: pointer;
+	}
+
+	.nudge-x:hover {
+		color: var(--fg);
 	}
 
 	.folder-head {
@@ -636,9 +947,11 @@
 
 	.glyph {
 		flex: none;
-		font-size: 13px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		width: 18px;
-		text-align: center;
+		color: var(--muted);
 	}
 
 	.label {
@@ -651,7 +964,7 @@
 
 	.count {
 		flex: none;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		color: var(--muted);
 	}
 
@@ -660,10 +973,16 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		cursor: pointer;
 		padding: 0 2px;
 		width: 14px;
+	}
+
+	.menu-wrap {
+		position: relative;
+		flex: none;
+		display: flex;
 	}
 
 	.menu-btn {
@@ -671,7 +990,7 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: calc(15px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 0 4px;
@@ -688,10 +1007,10 @@
 		min-width: 0;
 		padding: 3px 6px;
 		border: 1px solid var(--accent);
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		outline: none;
 	}
 
@@ -702,7 +1021,7 @@
 	}
 
 	.group-label {
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--muted);
@@ -717,7 +1036,7 @@
 		min-width: 140px;
 		background: var(--surface);
 		border: 1px solid var(--edge);
-		border-radius: 10px;
+		border-radius: var(--r-md);
 		box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 		padding: 4px;
 		display: flex;
@@ -729,9 +1048,9 @@
 		padding: 7px 10px;
 		border: none;
 		background: transparent;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		color: var(--fg);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 	}
 
@@ -740,21 +1059,21 @@
 	}
 
 	.menu button.danger {
-		color: #ef4444;
+		color: var(--danger);
 	}
 
 	.handle {
 		position: absolute;
 		top: 12px;
 		left: 12px;
-		z-index: 30;
+		z-index: var(--z-panel);
 		width: 34px;
 		height: 34px;
 		border: 1px solid var(--edge);
-		border-radius: 9px;
+		border-radius: var(--r-md);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 16px;
+		font-size: calc(16px + var(--font-bump));
 		cursor: pointer;
 		box-shadow: var(--node-shadow);
 	}

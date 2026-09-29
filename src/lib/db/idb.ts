@@ -39,3 +39,12 @@ export function flushSave(): void {
 	flush = undefined;
 	void job?.();
 }
+
+// Persist any pending debounced write before the page is closed or hidden, so a
+// delete made moments before a refresh is not lost.
+if (typeof window !== 'undefined') {
+	window.addEventListener('pagehide', flushSave);
+	document.addEventListener('visibilitychange', () => {
+		if (document.visibilityState === 'hidden') flushSave();
+	});
+}

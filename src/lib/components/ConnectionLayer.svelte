@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { MindNode } from '$lib/types';
 	import { canvas } from '$lib/stores/canvas.svelte';
-	import { calculateBezierPath } from '$lib/utils/bezier';
+	import { calculateBezierPath, type Rect } from '$lib/utils/bezier';
 	import { forEachNode, getEdges } from '$lib/utils/tree';
 
 	let { root }: { root: MindNode } = $props();
@@ -27,22 +27,17 @@
 		return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
 	});
 
+	function rectFor(node: MindNode): Rect {
+		const size = canvas.nodeSizes[node.id];
+		return { cx: node.position.x, cy: node.position.y, w: size?.w ?? 0, h: size?.h ?? 0 };
+	}
+
 	const paths = $derived(
-		edges.map(({ parent, child }) => {
-			const pSize = canvas.nodeSizes[parent.id];
-			const cSize = canvas.nodeSizes[child.id];
-			const pW = pSize?.w ?? 0;
-			const cW = cSize?.w ?? 0;
-			const sx = parent.position.x + pW / 2;
-			const sy = parent.position.y;
-			const ex = child.position.x - cW / 2;
-			const ey = child.position.y;
-			return {
-				id: child.id,
-				d: calculateBezierPath(sx, sy, ex, ey),
-				color: child.style?.color
-			};
-		})
+		edges.map(({ parent, child }) => ({
+			id: child.id,
+			d: calculateBezierPath(rectFor(parent), rectFor(child)),
+			color: child.style?.color
+		}))
 	);
 </script>
 

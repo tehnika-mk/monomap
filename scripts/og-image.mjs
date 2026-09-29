@@ -10,29 +10,30 @@ const html = `<!doctype html>
         margin: 0;
         width: 1200px;
         height: 630px;
-        background: #11110f;
-        font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+        background: #0b0b0d;
+        font-family: 'Inter', system-ui, sans-serif;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        color: #f1f1ec;
+        color: #f2f2f4;
       }
       .mark {
         display: flex;
         align-items: center;
         gap: 20px;
-        margin-bottom: 24px;
+        margin-bottom: 26px;
       }
       .name {
-        font-size: 58px;
+        font-size: 60px;
         font-weight: 600;
-        letter-spacing: 0.04em;
+        letter-spacing: -0.02em;
       }
       .tag {
-        font-size: 24px;
-        color: #9c9c93;
-        letter-spacing: 0.16em;
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 22px;
+        color: #9a9aa3;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
       }
     </style>
@@ -40,8 +41,8 @@ const html = `<!doctype html>
   <body>
     <div class="mark">
       <svg width="66" height="66" viewBox="0 0 32 32" fill="none">
-        <circle cx="16" cy="16" r="8" fill="#5290fa" />
-        <circle cx="16" cy="16" r="4.5" fill="#11110f" />
+        <circle cx="16" cy="16" r="8" fill="#6f9bff" />
+        <circle cx="16" cy="16" r="4.5" fill="#0b0b0d" />
       </svg>
       <span class="name">MonoMap</span>
     </div>

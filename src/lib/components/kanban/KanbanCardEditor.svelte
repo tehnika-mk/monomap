@@ -2,6 +2,8 @@
 	import { kanban } from '$lib/stores/kanban.svelte';
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { fromDateInputValue, toDateInputValue } from '$lib/utils/due';
+	import { deleteCardWithUndo } from '$lib/utils/kanbanCardActions';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	const LABEL_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7'];
 
@@ -87,7 +89,7 @@
 					aria-label="Close card editor"
 					onclick={() => kanban.closeCard()}
 				>
-					&times;
+					<Icon name="x" size={14} />
 				</button>
 			</header>
 
@@ -128,7 +130,7 @@
 										aria-label={`Remove label ${label.text}`}
 										onclick={() => workspace.removeCardLabel(board!.id, card.id, index)}
 									>
-										&times;
+										<Icon name="x" size={14} />
 									</button>
 								</span>
 							{/each}
@@ -200,7 +202,7 @@
 										aria-label="Remove task"
 										onclick={() => workspace.removeChecklistItem(board!.id, card.id, item.id)}
 									>
-										&times;
+										<Icon name="x" size={14} />
 									</button>
 								</div>
 							{/each}
@@ -220,6 +222,24 @@
 					</div>
 				</section>
 			</div>
+
+			<footer class="footer">
+				<button
+					type="button"
+					class="mini-btn complete"
+					class:on={card.completed}
+					onclick={() => workspace.toggleCardComplete(board!.id, card.id)}
+				>
+					{card.completed ? 'Reopen card' : 'Mark complete'}
+				</button>
+				<button
+					type="button"
+					class="mini-btn danger"
+					onclick={() => deleteCardWithUndo(board!.id, card.id)}
+				>
+					Delete card
+				</button>
+			</footer>
 		{/if}
 	</div>
 {/if}
@@ -235,7 +255,7 @@
 		background: var(--surface);
 		border-left: 1px solid var(--edge);
 		box-shadow: -8px 0 24px rgb(0 0 0 / 0.08);
-		z-index: 60;
+		z-index: var(--z-panel);
 		display: flex;
 		flex-direction: column;
 	}
@@ -254,7 +274,7 @@
 			max-height: 76vh;
 			border-left: none;
 			border-top: 1px solid var(--edge);
-			border-radius: 16px 16px 0 0;
+			border-radius: var(--r-lg) var(--r-lg) 0 0;
 			box-shadow: 0 -12px 32px rgb(0 0 0 / 0.18);
 			padding-bottom: env(safe-area-inset-bottom);
 			z-index: 70;
@@ -286,7 +306,7 @@
 		border: none;
 		background: transparent;
 		color: var(--fg);
-		font-size: 14px;
+		font-size: calc(14px + var(--font-bump));
 		font-weight: 600;
 		outline: none;
 	}
@@ -295,11 +315,11 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 20px;
+		font-size: calc(20px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 2px 6px;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 	}
 
 	.close:hover {
@@ -323,7 +343,7 @@
 	}
 
 	.label {
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--muted);
@@ -333,10 +353,10 @@
 		min-height: 120px;
 		padding: 10px 12px;
 		border: 1px solid var(--edge);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		line-height: 1.6;
 		resize: vertical;
 		outline: none;
@@ -357,19 +377,19 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		font-weight: 600;
 		color: #fff;
 		background: var(--chip);
 		padding: 2px 10px;
-		border-radius: 9999px;
+		border-radius: var(--r-xs);
 	}
 
 	.chip-remove {
 		border: none;
 		background: transparent;
 		color: inherit;
-		font-size: 14px;
+		font-size: calc(14px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 0 2px;
@@ -391,11 +411,11 @@
 		flex: 1;
 		min-width: 0;
 		padding: 6px 10px;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		border: 1px solid var(--edge);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		outline: none;
 	}
 
@@ -426,10 +446,10 @@
 	.add {
 		padding: 6px 10px;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--accent);
 		color: var(--accent-fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		font-weight: 600;
 		cursor: pointer;
 	}
@@ -442,10 +462,10 @@
 	.mini-btn {
 		padding: 6px 10px;
 		border: 1px solid var(--edge);
-		border-radius: 7px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		cursor: pointer;
 	}
 
@@ -461,11 +481,11 @@
 
 	.due-row input {
 		padding: 6px 10px;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		border: 1px solid var(--edge);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		outline: none;
 		color-scheme: light;
 	}
@@ -497,7 +517,7 @@
 		border: none;
 		background: transparent;
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		outline: none;
 	}
 
@@ -533,7 +553,36 @@
 
 	.progress-text {
 		flex: none;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		color: var(--muted);
+	}
+
+	.footer {
+		flex: none;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px;
+		border-top: 1px solid var(--edge);
+	}
+
+	.footer .complete {
+		flex: 1;
+		font-weight: 600;
+	}
+
+	.footer .complete.on {
+		color: var(--accent-fg);
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.footer .danger {
+		color: var(--danger);
+		border-color: color-mix(in srgb, var(--danger) 40%, var(--edge));
+	}
+
+	.footer .danger:hover {
+		background: color-mix(in srgb, var(--danger) 12%, transparent);
 	}
 </style>

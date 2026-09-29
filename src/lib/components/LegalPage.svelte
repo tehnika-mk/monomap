@@ -4,7 +4,13 @@
 </script>
 
 <main class="legal">
-	<a href="/" class="legal-brand">← MonoMap</a>
+	<a href="/" class="legal-brand">
+		<svg width="16" height="16" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+			<circle cx="16" cy="16" r="8" fill="var(--accent)" />
+			<circle cx="16" cy="16" r="4.5" fill="var(--canvas)" />
+		</svg>
+		MonoMap
+	</a>
 	<h1>{title}</h1>
 	<p class="legal-updated">Last updated: {updated}</p>
 	<div class="legal-body">
@@ -14,38 +20,42 @@
 
 <style>
 	.legal {
-		min-height: 100dvh;
+		width: 100%;
+		max-width: var(--content-max);
+		margin: 0 auto;
+		box-sizing: border-box;
+		padding: 72px clamp(20px, 4vw, 48px) 112px;
 		background: var(--canvas);
 		color: var(--fg);
-		font-family: 'Instrument Sans', system-ui, sans-serif;
-		-webkit-font-smoothing: antialiased;
-		padding: 56px clamp(20px, 6vw, 48px) 96px;
 	}
-
+	.legal,
+	.legal * {
+		text-align: left;
+	}
 	.legal-brand {
-		display: inline-block;
-		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: 13px;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
 		color: var(--muted);
+		font-family: var(--font-mono);
+		font-size: calc(13px + var(--font-bump));
 		text-decoration: none;
-		transition: color 0.15s ease;
+		transition: color var(--dur) var(--ease);
 	}
-
 	.legal-brand:hover {
 		color: var(--fg);
 	}
-
 	h1 {
-		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: clamp(28px, 4vw, 40px);
-		letter-spacing: -0.01em;
-		margin: 40px 0 8px;
+		margin: 36px 0 8px;
+		font-family: var(--font-display);
+		font-size: clamp(28px, 4vw, 42px);
+		font-weight: 600;
+		letter-spacing: -0.025em;
 	}
-
 	.legal-updated {
-		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: 12px;
-		color: var(--muted);
 		margin: 0 0 32px;
+		color: var(--muted);
+		font-family: var(--font-mono);
+		font-size: calc(12px + var(--font-bump));
 	}
 </style>

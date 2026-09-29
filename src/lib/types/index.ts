@@ -52,6 +52,8 @@ export interface KanbanCard {
 	labels?: KanbanLabel[];
 	dueDate?: number;
 	checklist?: KanbanChecklistItem[];
+	completed?: boolean;
+	completedAt?: number;
 	sourceNodeId?: string | null;
 }
 

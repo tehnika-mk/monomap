@@ -17,6 +17,7 @@ export class KanbanState {
 	editingCardBoardId = $state<string | null>(null);
 	editingCardId = $state<string | null>(null);
 	filterQuery = $state('');
+	showCompleted = $state(true);
 	searchInputEl = $state<HTMLInputElement | null>(null);
 
 	drag = $state<KanbanDragState | null>(null);

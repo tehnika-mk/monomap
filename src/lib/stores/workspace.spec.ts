@@ -57,6 +57,47 @@ describe('workspace store', () => {
 		expect(store.getActiveMap()?.rootNode.id).toBe(rootId);
 	});
 
+	it('deleteNodes removes a selection but never the root', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const rootId = store.maps[0].rootNode.id;
+		const a = store.createChild(rootId, 'A')!;
+		const b = store.createChild(rootId, 'B')!;
+		const c = store.createChild(rootId, 'C')!;
+		store.deleteNodes([a.id, b.id, rootId]);
+		expect(store.getActiveMap()?.rootNode.children.map((n) => n.id)).toEqual([
+			store.maps[0].rootNode.children[0].id,
+			store.maps[0].rootNode.children[1].id,
+			c.id
+		]);
+	});
+
+	it('deleteNodes skips descendants whose ancestor is also selected', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const rootId = store.maps[0].rootNode.id;
+		const parent = store.createChild(rootId, 'Parent')!;
+		const child = store.createChild(parent.id, 'Child')!;
+		store.deleteNodes([parent.id, child.id]);
+		expect(store.getActiveMap()?.rootNode.children).toHaveLength(2);
+		expect(store.getActiveMap()?.rootNode.children.some((n) => n.id === parent.id)).toBe(false);
+	});
+
+	it('moveNodes offsets every selected node by the same delta', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const rootId = store.maps[0].rootNode.id;
+		const a = store.createChild(rootId, 'A')!;
+		const b = store.createChild(rootId, 'B')!;
+		const ax = a.position.x;
+		const ay = a.position.y;
+		const bx = b.position.x;
+		const by = b.position.y;
+		store.moveNodes([a.id, b.id], 10, 20);
+		expect(a.position).toEqual({ x: ax + 10, y: ay + 20 });
+		expect(b.position).toEqual({ x: bx + 10, y: by + 20 });
+	});
+
 	it('duplicates a map with fresh ids and opens it', async () => {
 		const { store } = await freshStore();
 		await store.init();
@@ -67,6 +108,28 @@ describe('workspace store', () => {
 		expect(copy!.rootNode.id).not.toBe(store.maps[0].rootNode.id);
 		expect(store.openTabs).toContain(copy!.id);
 		expect(store.activeTabId).toBe(copy!.id);
+	});
+
+	it('duplicates a board with fresh ids, drops node links and opens it', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const board = store.createBoard('Ship');
+		const column = store.addColumn(board.id, 'Todo')!;
+		const card = store.createCard(board.id, column.id, 'Write spec')!;
+		store.addChecklistItem(board.id, card.id, 'Step');
+		card.sourceNodeId = 'node-x';
+		const copy = store.duplicateBoard(board.id)!;
+		expect(copy).not.toBeNull();
+		expect(copy.id).not.toBe(board.id);
+		expect(copy.title).toBe('Ship (copy)');
+		expect(store.activeBoardId).toBe(copy.id);
+		expect(store.viewMode).toBe('kanban');
+		expect(copy.columns[0].id).not.toBe(board.columns[0].id);
+		const copiedCard = copy.columns[1].cards[0];
+		expect(copiedCard.id).not.toBe(card.id);
+		expect(copiedCard.title).toBe('Write spec');
+		expect(copiedCard.sourceNodeId).toBeNull();
+		expect(copiedCard.checklist![0].id).not.toBe(card.checklist![0].id);
 	});
 
 	it('closing the last tab creates a fresh map', async () => {
@@ -100,6 +163,24 @@ describe('workspace store', () => {
 		expect(board.columns.map((c) => c.title)).toEqual(['Done', 'Inbox', 'Todo']);
 		store.renameColumn(board.id, todo.id, 'Doing');
 		expect(board.columns[2].title).toBe('Doing');
+	});
+
+	it('reorders columns rightward without an off-by-one', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const board = store.createBoard('Ship');
+		const todo = store.addColumn(board.id, 'Todo')!;
+		const done = store.addColumn(board.id, 'Done')!;
+		// [Inbox, Todo, Done] — drop Inbox at index 3 (the end)
+		store.moveColumn(board.id, board.columns[0].id, 3);
+		expect(board.columns.map((c) => c.title)).toEqual(['Todo', 'Done', 'Inbox']);
+		// Drop Todo (index 0) at index 2 — between Done and Inbox
+		store.moveColumn(board.id, todo.id, 2);
+		expect(board.columns.map((c) => c.title)).toEqual(['Done', 'Todo', 'Inbox']);
+		// Moving left stays correct: send the last column to the front
+		store.moveColumn(board.id, board.columns[2].id, 0);
+		expect(board.columns.map((c) => c.title)).toEqual(['Inbox', 'Done', 'Todo']);
+		expect(done.title).toBe('Done');
 	});
 
 	it('creates, updates and moves cards across columns', async () => {
@@ -136,6 +217,37 @@ describe('workspace store', () => {
 		expect(card.checklist![0].done).toBe(true);
 		store.toggleChecklistItem(board.id, card.id, item.id);
 		expect(card.checklist![0].done).toBe(false);
+	});
+
+	it('marks cards complete and restores deleted cards with their node link', async () => {
+		const { store } = await freshStore();
+		await store.init();
+		const board = store.createBoard('Ship');
+		const column = board.columns[0];
+		const first = store.createCard(board.id, column.id, 'First')!;
+		const second = store.createCard(board.id, column.id, 'Second')!;
+
+		store.toggleCardComplete(board.id, first.id);
+		expect(first.completed).toBe(true);
+		expect(typeof first.completedAt).toBe('number');
+		store.setCardComplete(board.id, first.id, false);
+		expect(first.completed).toBeUndefined();
+		expect(first.completedAt).toBeUndefined();
+
+		const rootId = store.maps[0].rootNode.id;
+		second.sourceNodeId = rootId;
+		store.setNodeKanbanLink(rootId, second.id);
+		const location = store.findCardLocation(board.id, second.id)!;
+		expect(location.columnId).toBe(column.id);
+		expect(location.index).toBe(1);
+
+		store.deleteCard(board.id, second.id);
+		expect(column.cards.map((c) => c.id)).toEqual([first.id]);
+		expect(store.maps[0].rootNode.metadata?.kanbanCardId).toBeUndefined();
+
+		store.restoreCard(board.id, location.columnId, location.card, location.index);
+		expect(column.cards.map((c) => c.id)).toEqual([first.id, second.id]);
+		expect(store.maps[0].rootNode.metadata?.kanbanCardId).toBe(second.id);
 	});
 
 	it('round-trips boards through serialize/restore', async () => {

@@ -120,6 +120,11 @@
 			case 'Backspace':
 				e.preventDefault();
 				{
+					if (canvas.selectedNodeIds.length > 1) {
+						workspace.deleteNodes(canvas.selectedNodeIds);
+						canvas.clearSelection();
+						break;
+					}
 					if (selected === root.id) return;
 					const parentId = findParent(root, selected)?.parent.id ?? root.id;
 					workspace.deleteNode(selected);

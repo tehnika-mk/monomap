@@ -6,6 +6,7 @@
 	import { normalizeUrl } from '$lib/utils/url';
 	import { boardFromBranch, findCardLocation, openLinkedCard, sendNodeToBoard } from '$lib/utils/kanbanLink';
 	import EmojiPicker from './EmojiPicker.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	const COLOR_PRESETS: Array<{ name: string; value: string | null }> = [
 		{ name: 'Default', value: null },
@@ -85,7 +86,7 @@
 				aria-label="Close node settings"
 				onclick={() => (canvas.panelOpen = false)}
 			>
-				&times;
+				<Icon name="x" size={14} />
 			</button>
 		</header>
 
@@ -162,7 +163,7 @@
 									aria-label="Remove link"
 									onclick={() => workspace.removeNodeLink(target!.id, link)}
 								>
-									&times;
+									<Icon name="x" size={14} />
 								</button>
 							</li>
 						{/each}
@@ -242,10 +243,10 @@
 		height: 56px;
 		border: 1px solid var(--edge);
 		border-right: none;
-		border-radius: 8px 0 0 8px;
+		border-radius: var(--r-md) 0 0 var(--r-md);
 		background: var(--surface);
 		color: var(--muted);
-		font-size: 16px;
+		font-size: calc(16px + var(--font-bump));
 		cursor: pointer;
 		box-shadow: var(--node-shadow);
 	}
@@ -269,7 +270,7 @@
 			max-height: 72vh;
 			border-left: none;
 			border-top: 1px solid var(--edge);
-			border-radius: 16px 16px 0 0;
+			border-radius: var(--r-lg) var(--r-lg) 0 0;
 			box-shadow: 0 -12px 32px rgb(0 0 0 / 0.18);
 			transform: translateY(102%);
 			padding-bottom: env(safe-area-inset-bottom);
@@ -299,7 +300,7 @@
 			border: 1px solid var(--edge);
 			border-right: 1px solid var(--edge);
 			border-radius: 9999px;
-			font-size: 20px;
+			font-size: calc(20px + var(--font-bump));
 		}
 
 		.close {
@@ -323,7 +324,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		font-weight: 600;
 	}
 
@@ -331,11 +332,11 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 20px;
+		font-size: calc(20px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 2px 6px;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 	}
 
 	.close:hover {
@@ -359,7 +360,7 @@
 	}
 
 	.label {
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--muted);
@@ -406,18 +407,18 @@
 		width: 36px;
 		height: 36px;
 		border: 1px solid var(--edge);
-		border-radius: 8px;
+		border-radius: var(--r-md);
 		background: var(--surface-2);
-		font-size: 18px;
+		font-size: calc(18px + var(--font-bump));
 	}
 
 	.mini-btn {
 		padding: 6px 10px;
 		border: 1px solid var(--edge);
-		border-radius: 7px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		cursor: pointer;
 	}
 
@@ -449,11 +450,11 @@
 		flex: 1;
 		min-width: 0;
 		padding: 6px 10px;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		border: 1px solid var(--edge);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		outline: none;
 	}
 
@@ -464,10 +465,10 @@
 	.add {
 		padding: 6px 10px;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--accent);
 		color: var(--accent-fg);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		font-weight: 600;
 		cursor: pointer;
 	}
@@ -490,9 +491,9 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		padding: 4px 6px;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		background: var(--surface-2);
 	}
 
@@ -514,7 +515,7 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 14px;
+		font-size: calc(14px + var(--font-bump));
 		cursor: pointer;
 		line-height: 1;
 		padding: 2px;
@@ -528,10 +529,10 @@
 		min-height: 120px;
 		padding: 10px 12px;
 		border: 1px solid var(--edge);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--surface-2);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		line-height: 1.6;
 		resize: vertical;
 		outline: none;

@@ -4,15 +4,27 @@
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { dueStatus, formatDueDate } from '$lib/utils/due';
 	import { openNodeLocation } from '$lib/utils/kanbanLink';
+	import { deleteCardWithUndo } from '$lib/utils/kanbanCardActions';
+	import { clickOutside } from '$lib/actions/clickOutside';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	let {
 		boardId,
 		sourceMapId,
 		columnId,
 		card,
-		hidden = false
-	}: { boardId: string; sourceMapId: string | null; columnId: string; card: KanbanCard; hidden?: boolean } =
-		$props();
+		hidden = false,
+		preview = false,
+		dropLine = null
+	}: {
+		boardId: string;
+		sourceMapId: string | null;
+		columnId: string;
+		card: KanbanCard;
+		hidden?: boolean;
+		preview?: boolean;
+		dropLine?: 'before' | 'after' | null;
+	} = $props();
 
 	const doneCount = $derived(card.checklist?.filter((i) => i.done).length ?? 0);
 	const total = $derived(card.checklist?.length ?? 0);
@@ -26,6 +38,8 @@
 
 	let renaming = $state(false);
 	let titleDraft = $state('');
+	let menuOpen = $state(false);
+	let menuPos = $state({ x: 0, y: 0 });
 	let dblPending = false;
 	let dblTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -50,6 +64,44 @@
 		el.focus();
 		el.select();
 	}
+
+	function toggleComplete() {
+		workspace.toggleCardComplete(boardId, card.id);
+	}
+
+	function openEditor() {
+		if (dblPending) clearDbl();
+		kanban.openCard(boardId, card.id);
+	}
+
+	function stopActions(e: Event) {
+		e.stopPropagation();
+	}
+
+	function toggleMenu(e: MouseEvent) {
+		if (menuOpen) {
+			menuOpen = false;
+			return;
+		}
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const width = 152;
+		menuPos = {
+			x: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+			y: rect.bottom + 4
+		};
+		menuOpen = true;
+	}
+
+	$effect(() => {
+		if (!menuOpen) return;
+		const close = () => (menuOpen = false);
+		window.addEventListener('resize', close);
+		window.addEventListener('scroll', close, true);
+		return () => {
+			window.removeEventListener('resize', close);
+			window.removeEventListener('scroll', close, true);
+		};
+	});
 
 	function handleClick() {
 		if (suppressClick) return;
@@ -117,95 +169,162 @@
 	}
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="card"
 	class:is-hidden={hidden}
-	data-card={card.id}
-	role="button"
-	tabindex="0"
-	onclick={handleClick}
-	onkeydown={(e) => {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			if (dblPending) clearDbl();
-			kanban.openCard(boardId, card.id);
-		}
-	}}
-	onpointerdown={onPointerDown}
-	onpointermove={onPointerMove}
-	onpointerup={onPointerUp}
-	onpointercancel={onPointerCancel}
+	class:completed={card.completed}
+	class:preview
+	class:drop-before={dropLine === 'before'}
+	class:drop-after={dropLine === 'after'}
+	data-card={preview ? undefined : card.id}
+	role={preview ? undefined : 'button'}
+	tabindex={preview ? undefined : 0}
+	onclick={preview ? undefined : handleClick}
+	onkeydown={preview
+		? undefined
+		: (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					openEditor();
+				}
+			}}
+	onpointerdown={preview ? undefined : onPointerDown}
+	onpointermove={preview ? undefined : onPointerMove}
+	onpointerup={preview ? undefined : onPointerUp}
+	onpointercancel={preview ? undefined : onPointerCancel}
 >
-	{#if renaming}
-		<input
-			class="rename-input"
-			bind:value={titleDraft}
-			placeholder="Card title"
-			use:autofocus
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => {
-				e.stopPropagation();
-				if (e.key === 'Enter') commitRename();
-				if (e.key === 'Escape') renaming = false;
-			}}
-			onblur={commitRename}
-		/>
-	{:else if card.title}
-		<span class="title">{card.title}</span>
-	{/if}
-	{#if card.labels?.length}
-		<div class="labels">
-			{#each card.labels as label (label.text + label.color)}
-				<span
-					class="chip"
-					style:--chip={label.color}
-					style:--chip-fg={chipFg(label.color)}
-					title={label.text}
-				>
-					{label.text}
-				</span>
-			{/each}
+	<button
+		type="button"
+		class="check"
+		class:on={card.completed}
+		aria-pressed={card.completed}
+		aria-label={card.completed ? 'Mark incomplete' : 'Mark complete'}
+		title={card.completed ? 'Mark incomplete' : 'Mark complete'}
+		onclick={(e) => {
+			e.stopPropagation();
+			toggleComplete();
+		}}
+		onpointerdown={stopActions}
+		onkeydown={stopActions}
+	>
+		✓
+	</button>
+
+	<div class="card-body">
+		{#if renaming}
+			<input
+				class="rename-input"
+				bind:value={titleDraft}
+				placeholder="Card title"
+				use:autofocus
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => {
+					e.stopPropagation();
+					if (e.key === 'Enter') commitRename();
+					if (e.key === 'Escape') renaming = false;
+				}}
+				onblur={commitRename}
+			/>
+		{:else if card.title}
+			<span class="title">{card.title}</span>
+		{/if}
+		{#if card.labels?.length}
+			<div class="labels">
+				{#each card.labels as label (label.text + label.color)}
+					<span
+						class="chip"
+						style:--chip={label.color}
+						style:--chip-fg={chipFg(label.color)}
+						title={label.text}
+					>
+						{label.text}
+					</span>
+				{/each}
+			</div>
+		{/if}
+		{#if firstLine}
+			<span class="desc">{firstLine}</span>
+		{/if}
+		{#if total > 0}
+			<div class="checklist" title={`${doneCount}/${total} done`}>
+				<span class="progress" style:--done={total > 0 ? (doneCount / total) * 100 : 0}></span>
+				<span class="check-text"><Icon name="circle-check" size={12} /> {doneCount}/{total}</span>
+			</div>
+		{/if}
+		{#if due}
+			<span class="due" class:overdue={due === 'overdue'} class:soon={due === 'soon'}>
+				<Icon name="calendar" size={12} /> {formatDueDate(card.dueDate!)}
+			</span>
+		{/if}
+		{#if card.sourceNodeId}
+			<button
+				type="button"
+				class="map-link"
+				title="Open in mind map"
+				onclick={(e) => {
+					e.stopPropagation();
+					openNodeLocation(sourceMapId, card.sourceNodeId!);
+				}}
+			>
+				Map ↗
+			</button>
+		{/if}
+	</div>
+
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="card-actions"
+		onclick={stopActions}
+		onpointerdown={stopActions}
+		onpointerup={stopActions}
+		onkeydown={stopActions}
+	>
+		<div class="menu-wrap" use:clickOutside={() => (menuOpen = false)}>
+			<button
+				type="button"
+				class="act menu-btn"
+				aria-label="Card actions"
+				aria-haspopup="menu"
+				aria-expanded={menuOpen}
+				onclick={toggleMenu}
+			>
+				<Icon name="more-horizontal" size={16} />
+			</button>
+			{#if menuOpen}
+				<div class="menu" role="menu" style:left={`${menuPos.x}px`} style:top={`${menuPos.y}px`}>
+					<button type="button" role="menuitem" onclick={() => { menuOpen = false; toggleComplete(); }}>
+						{card.completed ? 'Mark incomplete' : 'Mark complete'}
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						class="danger"
+						onclick={() => {
+							menuOpen = false;
+							deleteCardWithUndo(boardId, card.id);
+						}}
+					>
+						Delete
+					</button>
+				</div>
+			{/if}
 		</div>
-	{/if}
-	{#if firstLine}
-		<span class="desc">{firstLine}</span>
-	{/if}
-	{#if total > 0}
-		<div class="checklist" title={`${doneCount}/${total} done`}>
-			<span class="progress" style:--done={total > 0 ? (doneCount / total) * 100 : 0}></span>
-			<span class="check-text">☑ {doneCount}/{total}</span>
-		</div>
-	{/if}
-	{#if due}
-		<span class="due" class:overdue={due === 'overdue'} class:soon={due === 'soon'}>
-			🗓 {formatDueDate(card.dueDate!)}
-		</span>
-	{/if}
-	{#if card.sourceNodeId}
-		<button
-			type="button"
-			class="map-link"
-			title="Open in mind map"
-			onclick={(e) => {
-				e.stopPropagation();
-				openNodeLocation(sourceMapId, card.sourceNodeId!);
-			}}
-		>
-			Map ↗
-		</button>
-	{/if}
+	</div>
 </div>
 
 <style>
 	.card {
+		position: relative;
 		display: flex;
-		flex-direction: column;
-		gap: 6px;
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
 		background: var(--surface);
 		border: 1px solid var(--edge);
-		border-radius: 9px;
-		padding: 10px 12px;
-		font-size: 13px;
+		border-radius: var(--r-md);
+		padding: 10px 34px 10px 10px;
+		font-size: calc(13px + var(--font-bump));
 		box-shadow: var(--node-shadow);
 		cursor: pointer;
 		user-select: none;
@@ -220,6 +339,163 @@
 		display: none;
 	}
 
+	.card-body {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.card.completed .card-body {
+		opacity: 0.65;
+	}
+
+	.card.completed .title {
+		color: var(--muted);
+		text-decoration: line-through;
+	}
+
+	.card.preview {
+		cursor: default;
+	}
+
+	.card.preview .card-actions {
+		display: none;
+	}
+
+	.card.drop-before::before,
+	.card.drop-after::after {
+		content: '';
+		position: absolute;
+		left: 2px;
+		right: 2px;
+		height: 3px;
+		border-radius: 9999px;
+		background: var(--accent);
+		opacity: 0.7;
+	}
+
+	.card.drop-before::before {
+		top: -6px;
+	}
+
+	.card.drop-after::after {
+		bottom: -6px;
+	}
+
+	.check {
+		flex: none;
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 2px solid var(--muted);
+		border-radius: 9999px;
+		background: transparent;
+		color: transparent;
+		font-size: calc(11px + var(--font-bump));
+		line-height: 1;
+		cursor: pointer;
+		transition:
+			background 0.12s ease,
+			border-color 0.12s ease,
+			color 0.12s ease;
+	}
+
+	.check:hover {
+		border-color: var(--accent);
+		color: color-mix(in srgb, var(--accent) 55%, transparent);
+	}
+
+	.check.on {
+		border-color: var(--accent);
+		background: var(--accent);
+		color: var(--accent-fg);
+	}
+
+	.card-actions {
+		position: absolute;
+		top: 5px;
+		right: 5px;
+		display: flex;
+		align-items: center;
+		gap: 1px;
+	}
+
+	@media (hover: hover) {
+		.card-actions {
+			opacity: 0;
+			transition: opacity 120ms ease;
+		}
+
+		.card:hover .card-actions,
+		.card:focus-within .card-actions {
+			opacity: 1;
+		}
+	}
+
+	.act {
+		flex: none;
+		width: 22px;
+		height: 22px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: calc(12px + var(--font-bump));
+		line-height: 1;
+		cursor: pointer;
+		border-radius: var(--r-sm);
+		padding: 0;
+	}
+
+	.act:hover {
+		color: var(--fg);
+		background: var(--surface-2);
+	}
+
+	.menu-wrap {
+		position: relative;
+		display: flex;
+	}
+
+	.menu {
+		position: fixed;
+		z-index: 80;
+		min-width: 152px;
+		background: var(--surface);
+		border: 1px solid var(--edge);
+		border-radius: var(--r-md);
+		box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+		padding: 4px;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.menu button {
+		text-align: left;
+		padding: 7px 10px;
+		border: none;
+		background: transparent;
+		border-radius: var(--r-sm);
+		color: var(--fg);
+		font-size: calc(12.5px + var(--font-bump));
+		cursor: pointer;
+	}
+
+	.menu button:hover {
+		background: var(--surface-2);
+	}
+
+	.menu button.danger {
+		color: #ef4444;
+	}
+
 	.title {
 		line-height: 1.4;
 		word-break: break-word;
@@ -229,10 +505,10 @@
 		width: 100%;
 		padding: 3px 6px;
 		border: 1px solid var(--accent);
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		outline: none;
 	}
 
@@ -243,16 +519,16 @@
 	}
 
 	.chip {
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		font-weight: 600;
 		padding: 1px 8px;
-		border-radius: 9999px;
+		border-radius: var(--r-xs);
 		color: var(--chip-fg, #fff);
 		background: var(--chip);
 	}
 
 	.desc {
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		color: var(--muted);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -285,28 +561,28 @@
 
 	.check-text {
 		flex: none;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		color: var(--muted);
 	}
 
 	.due {
 		align-self: flex-start;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		font-weight: 600;
 		padding: 1px 8px;
-		border-radius: 9999px;
+		border-radius: var(--r-xs);
 		color: var(--muted);
 		background: var(--surface-2);
 	}
 
 	.due.soon {
-		color: #b45309;
-		background: color-mix(in srgb, #f59e0b 20%, transparent);
+		color: var(--warn);
+		background: var(--warn-soft);
 	}
 
 	.due.overdue {
-		color: #dc2626;
-		background: color-mix(in srgb, #ef4444 16%, transparent);
+		color: var(--danger);
+		background: var(--danger-soft);
 	}
 
 	.map-link {
@@ -315,7 +591,7 @@
 		border: none;
 		background: transparent;
 		color: var(--accent);
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		font-weight: 600;
 		padding: 0;
 		cursor: pointer;
@@ -323,13 +599,5 @@
 
 	.map-link:hover {
 		text-decoration: underline;
-	}
-
-	:global(.dark) .due.soon {
-		color: #fbbf24;
-	}
-
-	:global(.dark) .due.overdue {
-		color: #f87171;
 	}
 </style>

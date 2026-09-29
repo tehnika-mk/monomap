@@ -5,8 +5,10 @@
 	import { kanban } from '$lib/stores/kanban.svelte';
 	import { cardDropTarget, columnInsertIndex, type DropColumn } from '$lib/utils/kanbanDrop';
 	import KanbanColumn from './KanbanColumn.svelte';
+	import KanbanCard from './KanbanCard.svelte';
 	import KanbanCardEditor from './KanbanCardEditor.svelte';
 	import KanbanFilter from './KanbanFilter.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	const board = $derived(workspace.getActiveBoard());
 
@@ -23,6 +25,34 @@
 	let panStartX = 0;
 	let panStartScroll = 0;
 	let panMoved = false;
+
+	const dragBoard = $derived(
+		kanban.drag ? workspace.boards.find((b) => b.id === kanban.drag!.boardId) ?? null : null
+	);
+
+	const ghostCard = $derived.by(() => {
+		const d = kanban.drag;
+		if (!d || d.kind !== 'card' || !d.cardId) return null;
+		const board = workspace.boards.find((b) => b.id === d.boardId);
+		if (!board) return null;
+		for (const column of board.columns) {
+			const card = column.cards.find((c) => c.id === d.cardId);
+			if (card) return card;
+		}
+		return null;
+	});
+
+	const ghostColumn = $derived.by(() => {
+		const d = kanban.drag;
+		if (!d || d.kind !== 'column' || !d.columnId) return null;
+		const b = workspace.boards.find((bb) => bb.id === d.boardId);
+		return b?.columns.find((c) => c.id === d.columnId) ?? null;
+	});
+
+	// Column insert position (a column index) while a column is being dragged.
+	const colDropIndex = $derived(
+		kanban.drag?.kind === 'column' ? (kanban.dragOver?.index ?? null) : null
+	);
 
 	const dragLabel = $derived.by(() => {
 		const d = kanban.drag;
@@ -58,17 +88,21 @@
 			kanban.dragOver = null;
 			return;
 		}
+		const activeColumns = board?.columns ?? [];
 		const colEls = Array.from(document.querySelectorAll<HTMLElement>('[data-column]'));
 		const cols: DropColumn[] = colEls.map((el) => {
 			const rect = el.getBoundingClientRect();
+			const colId = el.dataset.column!;
+			const dataCol = activeColumns.find((c) => c.id === colId);
 			const cards = Array.from(el.querySelectorAll<HTMLElement>('[data-card]')).map((c) => {
-				const r = c.getBoundingClientRect();
-				return { id: c.dataset.card!, rect: r };
+				const cardId = c.dataset.card!;
+				const dataIndex = dataCol ? dataCol.cards.findIndex((k) => k.id === cardId) : 0;
+				return { id: cardId, rect: c.getBoundingClientRect(), dataIndex: Math.max(0, dataIndex) };
 			});
-			return { id: el.dataset.column!, rect, cards };
+			return { id: colId, rect, cards, dataLength: dataCol?.cards.length ?? cards.length };
 		});
 		if (d.kind === 'card') {
-			kanban.dragOver = cardDropTarget(cols, pos.x, pos.y, d.cardId);
+			kanban.dragOver = cardDropTarget(cols, pos.x, pos.y);
 		} else {
 			const index = columnInsertIndex(cols, pos.x);
 			kanban.dragOver = { columnId: cols[index]?.id ?? '', index };
@@ -150,11 +184,21 @@
 				<KanbanFilter />
 				<button
 					type="button"
+					class="done-toggle"
+					class:on={!kanban.showCompleted}
+					aria-pressed={!kanban.showCompleted}
+					title={kanban.showCompleted ? 'Hide completed cards' : 'Show completed cards'}
+					onclick={() => (kanban.showCompleted = !kanban.showCompleted)}
+				>
+					{kanban.showCompleted ? 'Hide done' : 'Show done'}
+				</button>
+				<button
+					type="button"
 					class="add-col"
 					title="Add column"
 					onclick={() => workspace.addColumn(board.id)}
 				>
-					＋ Column
+					<Icon name="plus" size={15} /> Column
 				</button>
 			</div>
 		</header>
@@ -168,15 +212,59 @@
 			onpointerup={onColumnsPointerEnd}
 			onpointercancel={onColumnsPointerEnd}
 		>
-			{#each board.columns as column (column.id)}
+			{#each board.columns as column, i (column.id)}
+				{#if colDropIndex === i}
+					<div class="col-drop" aria-hidden="true"></div>
+				{/if}
 				<KanbanColumn boardId={board.id} sourceMapId={board.sourceMapId} {column} />
 			{/each}
+			{#if colDropIndex === board.columns.length}
+				<div class="col-drop" aria-hidden="true"></div>
+			{/if}
 		</div>
 		<KanbanCardEditor />
 		{#if kanban.drag}
-			<div class="ghost" style="left:{kanban.dragPos.x}px; top:{kanban.dragPos.y}px">
-				{dragLabel}
-			</div>
+			{#if ghostCard}
+				<div
+					class="ghost card-ghost"
+					inert
+					style="left:{kanban.dragPos.x}px; top:{kanban.dragPos.y}px"
+				>
+					<KanbanCard
+						boardId={kanban.drag.boardId}
+						sourceMapId={dragBoard?.sourceMapId ?? null}
+						columnId={kanban.drag.fromColumnId ?? kanban.drag.columnId ?? ''}
+						card={ghostCard}
+						preview
+					/>
+				</div>
+			{:else if ghostColumn}
+				<div
+					class="ghost col-ghost"
+					inert
+					style="left:{kanban.dragPos.x}px; top:{kanban.dragPos.y}px"
+				>
+					<div class="col-ghost-head">
+						<span class="col-ghost-title">{ghostColumn.title || 'Untitled column'}</span>
+						<span class="col-ghost-count">{ghostColumn.cards.length}</span>
+					</div>
+					<div class="col-ghost-body">
+						{#each ghostColumn.cards as card (card.id)}
+							<KanbanCard
+								boardId={kanban.drag.boardId}
+								sourceMapId={dragBoard?.sourceMapId ?? null}
+								columnId={ghostColumn.id}
+								{card}
+								preview
+							/>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<div class="ghost" style="left:{kanban.dragPos.x}px; top:{kanban.dragPos.y}px">
+					{dragLabel}
+				</div>
+			{/if}
 		{/if}
 	</div>
 {:else}
@@ -210,12 +298,91 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		padding: 8px 12px;
-		border-radius: 9px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		border: 1px solid var(--edge);
 		box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		opacity: 0.92;
+	}
+
+	.card-ghost {
+		transform: translate(-50%, -50%) rotate(1.5deg);
+		width: 272px;
+		max-width: 272px;
+		overflow: visible;
+		white-space: normal;
+		padding: 0;
+		border: none;
+		background: transparent;
+		box-shadow: none;
+		opacity: 0.95;
+	}
+
+	.card-ghost :global(.card) {
+		box-shadow: 0 12px 32px rgb(0 0 0 / 0.28);
+		border-color: var(--muted);
+	}
+
+	.col-drop {
+		flex: none;
+		align-self: stretch;
+		width: 4px;
+		min-height: 120px;
+		margin: 0 2px;
+		border-radius: 9999px;
+		background: var(--accent);
+		opacity: 0.6;
+	}
+
+	.col-ghost {
+		transform: translate(-50%, -50%) rotate(1deg);
+		width: 272px;
+		max-width: 272px;
+		padding: 0;
+		white-space: normal;
+		opacity: 0.97;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.col-ghost-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: 10px 12px 6px;
+		flex: none;
+	}
+
+	.col-ghost-title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: calc(13px + var(--font-bump));
+		font-weight: 600;
+	}
+
+	.col-ghost-count {
+		flex: none;
+		font-size: calc(11px + var(--font-bump));
+		color: var(--muted);
+		background: var(--surface-2);
+		border-radius: var(--r-sm);
+		padding: 1px 8px;
+	}
+
+	.col-ghost-body {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 4px 8px 10px;
+		max-height: min(70vh, 620px);
+		overflow: hidden;
+		-webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 	}
 
 	.board-header {
@@ -236,7 +403,7 @@
 	}
 
 	.board-title {
-		font-size: 18px;
+		font-size: calc(18px + var(--font-bump));
 		font-weight: 650;
 		margin: 0;
 		min-width: 0;
@@ -246,11 +413,11 @@
 	}
 
 	.title-input {
-		font-size: 18px;
+		font-size: calc(18px + var(--font-bump));
 		font-weight: 650;
 		padding: 3px 8px;
 		border: 1px solid var(--accent);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
 		outline: none;
@@ -259,15 +426,36 @@
 	.add-col {
 		padding: 7px 12px;
 		border: 1px solid var(--edge);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 	}
 
 	.add-col:hover {
 		background: var(--surface-2);
+	}
+
+	.done-toggle {
+		padding: 7px 12px;
+		border: 1px solid var(--edge);
+		border-radius: var(--r-sm);
+		background: var(--surface);
+		color: var(--muted);
+		font-size: calc(12.5px + var(--font-bump));
+		cursor: pointer;
+	}
+
+	.done-toggle:hover {
+		color: var(--fg);
+		background: var(--surface-2);
+	}
+
+	.done-toggle.on {
+		color: var(--accent-fg);
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.columns {
@@ -298,13 +486,13 @@
 	}
 
 	.empty-title {
-		font-size: 16px;
+		font-size: calc(16px + var(--font-bump));
 		font-weight: 600;
 		margin: 0;
 	}
 
 	.empty-hint {
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		color: var(--muted);
 		margin: 0;
 	}

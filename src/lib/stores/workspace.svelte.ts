@@ -97,6 +97,20 @@ function cloneBoard(board: KanbanBoard): KanbanBoard {
 	};
 }
 
+// Duplicate a board with fresh ids. Card links back to mind-map nodes are
+// dropped so the copy never contends with the original for the same node.
+function duplicateCard(card: KanbanCard): KanbanCard {
+	return {
+		id: newCardId(),
+		title: card.title,
+		description: card.description,
+		labels: card.labels?.map((label) => ({ text: label.text, color: label.color })),
+		dueDate: card.dueDate,
+		checklist: card.checklist?.map((item) => ({ id: nodeId(), text: item.text, done: item.done })),
+		sourceNodeId: null
+	};
+}
+
 export class WorkspaceState {
 	ready = $state(false);
 	activeTabId = $state<string>('');
@@ -236,6 +250,27 @@ export class WorkspaceState {
 		return copy;
 	}
 
+	duplicateBoard(boardId: string): KanbanBoard | null {
+		const source = this.boards.find((b) => b.id === boardId);
+		if (!source) return null;
+		const now = Date.now();
+		const copy: KanbanBoard = {
+			id: newBoardId(),
+			title: `${source.title} (copy)`,
+			sourceMapId: source.sourceMapId,
+			columns: source.columns.map((column) => ({
+				id: newColumnId(),
+				title: column.title,
+				cards: column.cards.map(duplicateCard)
+			})),
+			createdAt: now,
+			updatedAt: now
+		};
+		this.boards = [...this.boards, copy];
+		this.openBoard(copy.id);
+		return copy;
+	}
+
 	deleteMap(mapId: string): void {
 		this.maps = this.maps.filter((m) => m.id !== mapId);
 		this.openTabs = this.openTabs.filter((id) => id !== mapId);
@@ -284,6 +319,8 @@ export class WorkspaceState {
 	openTab(mapId: string): void {
 		if (!this.openTabs.includes(mapId)) this.openTabs = [...this.openTabs, mapId];
 		this.activeTabId = mapId;
+		// Selecting a map always brings the mind-map workspace forward.
+		this.viewMode = 'mindmap';
 	}
 
 	closeTab(mapId: string): void {
@@ -352,6 +389,38 @@ export class WorkspaceState {
 		}
 	}
 
+	deleteNodes(nodeIds: string[]): void {
+		const root = this.activeMapRoot();
+		if (!root) return;
+		const selected = new Set(nodeIds.filter((id) => id !== root.id));
+		if (selected.size === 0) return;
+		// Skip any selected node whose ancestor is also selected — it is removed
+		// with that ancestor's subtree.
+		const removed = new Set<string>();
+		for (const id of selected) {
+			if (removed.has(id)) continue;
+			let parentId = findParent(root, id)?.parent.id ?? null;
+			let hasSelectedAncestor = false;
+			while (parentId) {
+				if (selected.has(parentId)) {
+					hasSelectedAncestor = true;
+					break;
+				}
+				parentId = findParent(root, parentId)?.parent.id ?? null;
+			}
+			if (hasSelectedAncestor) {
+				removed.add(id);
+				continue;
+			}
+			const found = findParent(root, id);
+			if (found) {
+				removeChild(found.parent, id);
+				removed.add(id);
+			}
+		}
+		if (removed.size > 0) this.touch(this.activeTabId);
+	}
+
 	updateNodeText(nodeId: string, text: string): void {
 		const root = this.activeMapRoot();
 		const node = root ? findNode(root, nodeId) : null;
@@ -369,6 +438,39 @@ export class WorkspaceState {
 			node.position.y = position.y;
 			this.touch(this.activeTabId);
 		}
+	}
+
+	// Absolute placement for a drag: the caller computes each node's target from
+	// its original position plus the total pointer delta, so snapping never
+	// loses sub-grid movement between frames.
+	setNodePositions(updates: Array<{ id: string; position: Vec2 }>): void {
+		const root = this.activeMapRoot();
+		if (!root || updates.length === 0) return;
+		let moved = false;
+		for (const { id, position } of updates) {
+			const node = findNode(root, id);
+			if (node) {
+				node.position.x = position.x;
+				node.position.y = position.y;
+				moved = true;
+			}
+		}
+		if (moved) this.touch(this.activeTabId);
+	}
+
+	moveNodes(nodeIds: string[], dx: number, dy: number): void {
+		const root = this.activeMapRoot();
+		if (!root || (dx === 0 && dy === 0)) return;
+		let moved = false;
+		for (const id of nodeIds) {
+			const node = root ? findNode(root, id) : null;
+			if (node) {
+				node.position.x += dx;
+				node.position.y += dy;
+				moved = true;
+			}
+		}
+		if (moved) this.touch(this.activeTabId);
 	}
 
 	setNodeColor(nodeId: string, color: string): void {
@@ -420,6 +522,45 @@ export class WorkspaceState {
 			if (node.links.length === 0) delete node.links;
 			this.touch(this.activeTabId);
 		}
+	}
+
+	// --- cloud sync merge helpers ---
+
+	applyRemoteMap(map: MapData): void {
+		const index = this.maps.findIndex((m) => m.id === map.id);
+		if (index === -1) this.maps = [...this.maps, map];
+		else this.maps = this.maps.map((m) => (m.id === map.id ? map : m));
+	}
+
+	restoreMapSnapshot(map: MapData): void {
+		this.applyRemoteMap({ ...map, updatedAt: Date.now() });
+	}
+
+	restoreBoardSnapshot(board: KanbanBoard): void {
+		this.applyRemoteBoard({ ...board, updatedAt: Date.now() });
+	}
+
+	applyRemoteBoard(board: KanbanBoard): void {
+		const index = this.boards.findIndex((b) => b.id === board.id);
+		if (index === -1) this.boards = [...this.boards, board];
+		else this.boards = this.boards.map((b) => (b.id === board.id ? board : b));
+	}
+
+	// Union-merge workspace-wide state (folders + open tabs) from the cloud.
+	applyRemoteMeta(meta: { folders?: Folder[]; openTabs?: string[] }): void {
+		const localFolders = new Map(this.folders.map((f) => [f.id, f]));
+		for (const folder of meta.folders ?? []) {
+			if (!localFolders.has(folder.id)) localFolders.set(folder.id, folder);
+		}
+		this.folders = [...localFolders.values()];
+
+		const remoteTabs = meta.openTabs ?? [];
+		for (const id of remoteTabs) {
+			if (!this.openTabs.includes(id) && this.maps.some((m) => m.id === id)) {
+				this.openTabs = [...this.openTabs, id];
+			}
+		}
+		if (!this.openTabs.includes(this.activeTabId)) this.activeTabId = this.openTabs[0] ?? this.activeTabId;
 	}
 
 	// --- view mode ---
@@ -508,8 +649,13 @@ export class WorkspaceState {
 		if (!board) return;
 		const from = board.columns.findIndex((c) => c.id === columnId);
 		if (from === -1) return;
+		// toIndex is measured before the column is removed (the drag drop index
+		// comes from the rendered DOM), so shift left when moving right — the same
+		// compensation moveCard applies.
+		let target = toIndex;
+		if (from < toIndex) target = toIndex - 1;
 		const [column] = board.columns.splice(from, 1);
-		const target = Math.min(board.columns.length, Math.max(0, toIndex));
+		target = Math.min(board.columns.length, Math.max(0, target));
 		board.columns.splice(target, 0, column);
 		this.touchBoard(boardId);
 	}
@@ -605,6 +751,25 @@ export class WorkspaceState {
 		}
 	}
 
+	toggleCardComplete(boardId: string, cardId: string): void {
+		const card = this.findCard(boardId, cardId);
+		if (!card) return;
+		this.setCardComplete(boardId, cardId, !card.completed);
+	}
+
+	setCardComplete(boardId: string, cardId: string, completed: boolean): void {
+		const card = this.findCard(boardId, cardId);
+		if (!card) return;
+		if (completed) {
+			card.completed = true;
+			card.completedAt = Date.now();
+		} else {
+			delete card.completed;
+			delete card.completedAt;
+		}
+		this.touchBoard(boardId);
+	}
+
 	removeChecklistItem(boardId: string, cardId: string, itemId: string): void {
 		const card = this.findCard(boardId, cardId);
 		if (card?.checklist) {
@@ -639,6 +804,29 @@ export class WorkspaceState {
 			if (card?.sourceNodeId) this.clearNodeKanbanLink(card.sourceNodeId);
 			this.touchBoard(boardId);
 		}
+	}
+
+	findCardLocation(
+		boardId: string,
+		cardId: string
+	): { columnId: string; index: number; card: KanbanCard } | null {
+		const board = this.boards.find((b) => b.id === boardId);
+		if (!board) return null;
+		for (const column of board.columns) {
+			const index = column.cards.findIndex((c) => c.id === cardId);
+			if (index !== -1) return { columnId: column.id, index, card: column.cards[index] };
+		}
+		return null;
+	}
+
+	restoreCard(boardId: string, columnId: string, card: KanbanCard, index: number): void {
+		const column = this.boards.find((b) => b.id === boardId)?.columns.find((c) => c.id === columnId);
+		if (!column) return;
+		if (column.cards.some((c) => c.id === card.id)) return;
+		const target = Math.min(column.cards.length, Math.max(0, index));
+		column.cards.splice(target, 0, card);
+		if (card.sourceNodeId) this.setNodeKanbanLink(card.sourceNodeId, card.id);
+		this.touchBoard(boardId);
 	}
 
 	// --- mind map ↔ kanban links ---

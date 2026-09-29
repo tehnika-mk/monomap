@@ -3,6 +3,9 @@
 	import { theme } from '$lib/stores/theme.svelte';
 	import { applyProfile, buildProfile, parseProfile } from '$lib/profile';
 	import { downloadJson } from '$lib/utils/download';
+	import { confirmDialog } from '$lib/stores/confirm.svelte';
+
+	let { onOpenHelp }: { onOpenHelp: () => void } = $props();
 
 	let profileInput = $state<HTMLInputElement | null>(null);
 	let importingProfile = $state(false);
@@ -18,7 +21,12 @@
 			alert('This is not a valid Mind Map profile file.');
 			return;
 		}
-		const confirmed = confirm('Replace your current local workspace with this profile?');
+		const confirmed = await confirmDialog.ask({
+			title: 'Replace local workspace?',
+			message: 'This replaces your current local workspace with the imported profile.',
+			confirmLabel: 'Replace',
+			danger: true
+		});
 		if (confirmed) applyProfile(profile);
 	}
 
@@ -33,16 +41,10 @@
 			});
 		}
 	}
-
-	function close() {
-		window.dispatchEvent(new CustomEvent('mindmap:close-preferences'));
-	}
 </script>
 
-<div class="backdrop" onclick={close} aria-hidden="true"></div>
-<div class="modal" role="dialog" aria-modal="true" aria-label="Preferences">
-	<button type="button" class="close" aria-label="Close" onclick={close}>&times;</button>
-	<h2 class="title">Preferences</h2>
+<section class="section">
+	<h3 class="section-title">Preferences</h3>
 
 	<div class="prefs">
 		<button
@@ -90,10 +92,37 @@
 			</span>
 			<span class="pref-name">Background Dots</span>
 		</button>
+		<button
+			type="button"
+			class="pref-row"
+			class:active={settings.snapEnabled}
+			aria-pressed={settings.snapEnabled}
+			title="Snap to grid"
+			onclick={() => settings.toggleSnap()}
+		>
+			<span class="pref-glyph">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M4 4h16v16H4z" />
+					<path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+				</svg>
+			</span>
+			<span class="pref-name">Snap to grid</span>
+		</button>
+		<button type="button" class="pref-row" title="Help & tutorial" onclick={onOpenHelp}>
+			<span class="pref-glyph">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="9" />
+					<path d="M9.5 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.7-.9 1.4v.6" />
+					<path d="M12 17h.01" />
+				</svg>
+			</span>
+			<span class="pref-name">Help &amp; tutorial</span>
+		</button>
 	</div>
 
 	<div class="profile">
 		<span class="profile-label">Profile backup</span>
+		<p class="profile-hint">Save your whole workspace and settings, or restore them here.</p>
 		<div class="profile-actions">
 			<button type="button" onclick={saveProfile}>Save profile</button>
 			<button type="button" disabled={importingProfile} onclick={() => profileInput?.click()}>
@@ -109,53 +138,20 @@
 			onchange={onProfileChosen}
 		/>
 	</div>
-</div>
+</section>
 
 <style>
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 90;
-		background: rgb(0 0 0 / 0.35);
+	.section {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
 	}
 
-	.modal {
-		position: fixed;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		z-index: 91;
-		width: min(360px, calc(100vw - 32px));
-		background: var(--surface);
-		border: 1px solid var(--edge);
-		border-radius: 16px;
-		box-shadow: 0 24px 64px rgb(0 0 0 / 0.25);
-		padding: 24px;
-	}
-
-	.close {
-		position: absolute;
-		top: 12px;
-		right: 12px;
-		border: none;
-		background: transparent;
-		color: var(--muted);
-		font-size: 20px;
-		line-height: 1;
-		cursor: pointer;
-		padding: 4px 8px;
-		border-radius: 6px;
-	}
-
-	.close:hover {
-		color: var(--fg);
-		background: var(--surface-2);
-	}
-
-	.title {
-		font-size: 17px;
+	.section-title {
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
+		font-size: calc(15px + var(--font-bump));
 		font-weight: 600;
-		margin: 0 0 16px;
+		margin: 0 0 8px;
 	}
 
 	.prefs {
@@ -169,12 +165,12 @@
 		align-items: center;
 		gap: 10px;
 		width: 100%;
-		padding: 9px 8px;
+		padding: 10px 10px;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		text-align: left;
 		cursor: pointer;
 	}
@@ -207,10 +203,17 @@
 	}
 
 	.profile-label {
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--muted);
+	}
+
+	.profile-hint {
+		font-size: calc(12.5px + var(--font-bump));
+		color: var(--muted);
+		margin: -4px 0 0;
+		line-height: 1.55;
 	}
 
 	.profile-actions {
@@ -222,10 +225,10 @@
 		flex: 1;
 		padding: 9px 8px;
 		border: 1px solid var(--edge);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--fg);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 	}
 

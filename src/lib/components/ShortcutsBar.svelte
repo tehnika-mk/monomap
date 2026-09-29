@@ -48,12 +48,12 @@
 		gap: 8px;
 		max-width: calc(100vw - 640px);
 		padding: 7px 12px;
-		border-radius: 9999px;
+		border-radius: var(--r-md);
 		background: var(--surface);
 		border: 1px solid var(--edge);
 		box-shadow: var(--node-shadow);
 		color: var(--muted);
-		font-size: 12px;
+		font-size: calc(12px + var(--font-bump));
 		overflow: hidden;
 	}
 
@@ -69,7 +69,7 @@
 
 	kbd {
 		font-family: inherit;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		font-weight: 600;
 		color: var(--fg);
 		background: var(--surface-2);

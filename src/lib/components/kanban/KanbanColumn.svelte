@@ -1,9 +1,11 @@
 <script lang="ts">
-	import type { KanbanColumn } from '$lib/types';
+	import type { KanbanCard as KanbanCardType, KanbanColumn } from '$lib/types';
 	import { workspace } from '$lib/stores/workspace.svelte';
 	import { kanban } from '$lib/stores/kanban.svelte';
 	import { cardMatches } from '$lib/utils/kanbanFilter';
+	import { clickOutside } from '$lib/actions/clickOutside';
 	import KanbanCard from './KanbanCard.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	let {
 		boardId,
@@ -22,12 +24,34 @@
 	let cardDraft = $state('');
 
 	const count = $derived(column.cards.length);
-	const isDragTarget = $derived(!!kanban.drag && kanban.dragOver?.columnId === column.id);
+	const doneCount = $derived(column.cards.filter((c) => c.completed).length);
+
+	// Card drops and column reorders share `dragOver`, so only treat this column
+	// as a card target while a card is being dragged.
+	const isCardDragTarget = $derived(
+		kanban.drag?.kind === 'card' && kanban.dragOver?.columnId === column.id
+	);
+	const isColumnSource = $derived(
+		kanban.drag?.kind === 'column' && kanban.drag.columnId === column.id
+	);
+	const cardDropIndex = $derived(isCardDragTarget ? (kanban.dragOver?.index ?? -1) : -1);
+
+	function cardHidden(card: KanbanCardType): boolean {
+		return !cardMatches(card, kanban.filterQuery) || (!kanban.showCompleted && !!card.completed);
+	}
+
+	const visibleCards = $derived(column.cards.filter((c) => !cardHidden(c)));
+	const lastVisibleIndex = $derived.by(() => {
+		const last = visibleCards[visibleCards.length - 1];
+		return last ? column.cards.indexOf(last) : -1;
+	});
 
 	let gripStart: { x: number; y: number } | null = null;
 
-	function slotAt(index: number) {
-		return isDragTarget && kanban.dragOver?.index === index;
+	function dropLineAt(index: number): 'before' | 'after' | null {
+		if (cardDropIndex === index) return 'before';
+		if (cardDropIndex === count && index === lastVisibleIndex) return 'after';
+		return null;
 	}
 
 	function autofocus(el: HTMLInputElement) {
@@ -87,7 +111,7 @@
 	}
 </script>
 
-<section class="col" data-column={column.id}>
+<section class="col" class:is-dragging={isColumnSource} data-column={column.id}>
 	<header class="col-head">
 		<button
 			type="button"
@@ -129,41 +153,54 @@
 				{column.title || 'Untitled column'}
 			</span>
 		{/if}
-		<span class="col-count">{count}</span>
-		<button
-			type="button"
-			class="menu-btn"
-			aria-label="Column actions"
-			onclick={() => (menuOpen = !menuOpen)}
-		>
-			⋯
-		</button>
-		{#if menuOpen}
-			<div class="menu">
-				<button type="button" onclick={startRename}>Rename</button>
-				<button
-					type="button"
-					class="danger"
-					onclick={() => {
-						menuOpen = false;
-						workspace.deleteColumn(boardId, column.id);
-					}}
-				>
-					Delete
-				</button>
-			</div>
-		{/if}
+		<span class="col-count" title={doneCount > 0 ? `${doneCount} completed` : undefined}>
+			{#if doneCount > 0}
+				{count - doneCount}
+				<span class="done-count">· {doneCount}✓</span>
+			{:else}
+				{count}
+			{/if}
+		</span>
+		<div class="menu-wrap" use:clickOutside={() => (menuOpen = false)}>
+			<button
+				type="button"
+				class="menu-btn"
+				aria-label="Column actions"
+				onclick={() => (menuOpen = !menuOpen)}
+			>
+				<Icon name="more-horizontal" size={16} />
+			</button>
+			{#if menuOpen}
+				<div class="menu">
+					<button type="button" onclick={startRename}>Rename</button>
+					<button
+						type="button"
+						class="danger"
+						onclick={() => {
+							menuOpen = false;
+							workspace.deleteColumn(boardId, column.id);
+						}}
+					>
+						Delete
+					</button>
+				</div>
+			{/if}
+		</div>
 	</header>
 
 	<div class="col-body">
 		{#each column.cards as card, index (card.id)}
-			{#if slotAt(index)}
-				<div class="drop-slot" aria-hidden="true"></div>
-			{/if}
-			<KanbanCard {boardId} {sourceMapId} columnId={column.id} {card} hidden={!cardMatches(card, kanban.filterQuery)} />
+			<KanbanCard
+				{boardId}
+				{sourceMapId}
+				columnId={column.id}
+				{card}
+				hidden={cardHidden(card)}
+				dropLine={dropLineAt(index)}
+			/>
 		{/each}
-		{#if slotAt(column.cards.length)}
-			<div class="drop-slot" aria-hidden="true"></div>
+		{#if isCardDragTarget && visibleCards.length === 0}
+			<div class="drop-empty" aria-hidden="true"></div>
 		{/if}
 
 		{#if addingCard}
@@ -183,7 +220,7 @@
 			/>
 		{:else}
 			<button type="button" class="add-card" onclick={() => (addingCard = true)}>
-				＋ Add card
+				<Icon name="plus" size={14} /> Add card
 			</button>
 		{/if}
 	</div>
@@ -196,9 +233,13 @@
 		max-height: 100%;
 		display: flex;
 		flex-direction: column;
-		border-radius: 12px;
+		border-radius: var(--r-md);
 		border: 1px solid var(--edge);
 		background: var(--surface-2);
+	}
+
+	.col.is-dragging {
+		opacity: 0.5;
 	}
 
 	.col-head {
@@ -215,7 +256,7 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		letter-spacing: -1px;
 		line-height: 1;
 		cursor: grab;
@@ -240,7 +281,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		font-weight: 600;
 	}
 
@@ -249,20 +290,30 @@
 		min-width: 0;
 		padding: 3px 6px;
 		border: 1px solid var(--accent);
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		outline: none;
 	}
 
 	.col-count {
 		flex: none;
-		font-size: 11px;
+		font-size: calc(11px + var(--font-bump));
 		color: var(--muted);
 		background: var(--surface);
-		border-radius: 9999px;
+		border-radius: var(--r-sm);
 		padding: 1px 8px;
+	}
+
+	.done-count {
+		color: var(--accent);
+	}
+
+	.menu-wrap {
+		position: relative;
+		flex: none;
+		display: flex;
 	}
 
 	.menu-btn {
@@ -270,7 +321,7 @@
 		border: none;
 		background: transparent;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: calc(15px + var(--font-bump));
 		line-height: 1;
 		cursor: pointer;
 		padding: 0 4px;
@@ -284,13 +335,13 @@
 
 	.menu {
 		position: absolute;
-		right: 6px;
-		top: calc(100% - 4px);
+		right: 0;
+		top: calc(100% + 4px);
 		z-index: 30;
 		min-width: 150px;
 		background: var(--surface);
 		border: 1px solid var(--edge);
-		border-radius: 10px;
+		border-radius: var(--r-md);
 		box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 		padding: 4px;
 		display: flex;
@@ -302,9 +353,9 @@
 		padding: 7px 10px;
 		border: none;
 		background: transparent;
-		border-radius: 6px;
+		border-radius: var(--r-sm);
 		color: var(--fg);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 	}
 
@@ -313,7 +364,7 @@
 	}
 
 	.menu button.danger {
-		color: #ef4444;
+		color: var(--danger);
 	}
 
 	.col-body {
@@ -326,22 +377,30 @@
 		min-height: 60px;
 	}
 
-	.drop-slot {
-		flex: none;
-		height: 6px;
+	.drop-empty {
+		position: relative;
+		height: 0;
+	}
+
+	.drop-empty::after {
+		content: '';
+		position: absolute;
+		left: 2px;
+		right: 2px;
+		top: -4px;
+		height: 3px;
 		border-radius: 9999px;
 		background: var(--accent);
-		opacity: 0.55;
-		margin: 0 2px;
+		opacity: 0.7;
 	}
 
 	.card-input {
 		padding: 9px 12px;
 		border: 1px solid var(--accent);
-		border-radius: 9px;
+		border-radius: var(--r-sm);
 		background: var(--surface);
 		color: var(--fg);
-		font-size: 13px;
+		font-size: calc(13px + var(--font-bump));
 		outline: none;
 	}
 
@@ -352,10 +411,10 @@
 		width: 100%;
 		padding: 7px 10px;
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		background: transparent;
 		color: var(--muted);
-		font-size: 12.5px;
+		font-size: calc(12.5px + var(--font-bump));
 		cursor: pointer;
 	}
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { nodeByText } from './helpers';
+import { nodeByText, openSettings } from './helpers';
 
 async function openMap(page: import('@playwright/test').Page) {
 	await page.goto('/workspace');
@@ -12,8 +12,7 @@ test('dotted grid can be toggled from preferences', async ({ page }) => {
 	const canvasRoot = page.locator('.canvas-root');
 	await expect(canvasRoot).toHaveCSS('background-image', /radial-gradient/);
 
-	await page.getByRole('button', { name: 'Preferences' }).click();
-	const prefs = page.getByRole('dialog', { name: 'Preferences' });
+	const prefs = await openSettings(page, 'Preferences');
 	await expect(prefs).toBeVisible();
 
 	await prefs.getByRole('button', { name: 'Dots' }).click();
@@ -29,8 +28,7 @@ test('theme toggle switches dark mode and persists across reload', async ({ page
 	const html = page.locator('html');
 	await expect(html).not.toHaveClass(/dark/);
 
-	await page.getByRole('button', { name: 'Preferences' }).click();
-	const prefs = page.getByRole('dialog', { name: 'Preferences' });
+	const prefs = await openSettings(page, 'Preferences');
 	await expect(prefs).toBeVisible();
 
 	await prefs.getByRole('button', { name: 'Dark mode' }).click();
@@ -52,6 +50,44 @@ test('shortcuts bar shows a fresh-map tip and hides it after adding a node', asy
 
 	await page.keyboard.press('Tab');
 	await expect(tip).not.toBeVisible();
+});
+
+test('snap to grid toggles, persists and snaps dragged nodes', async ({ page }) => {
+	await openMap(page);
+
+	const prefs = await openSettings(page, 'Preferences');
+	await prefs.getByRole('button', { name: 'Snap to grid' }).click();
+	expect(await page.evaluate(() => localStorage.getItem('mindmap:snap'))).toBe('true');
+	await prefs.getByRole('button', { name: 'Close' }).click();
+
+	const node = nodeByText(page, 'Node 1');
+	const box = await node.boundingBox();
+	await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2 + 30, { steps: 8 });
+	await page.mouse.up();
+
+	const position = await page.evaluate(
+		() => window.__mindmap!.workspace.getActiveMap()!.rootNode.children[0].position
+	);
+	expect(position.x % 26).toBe(0);
+	expect(position.y % 26).toBe(0);
+
+	await page.reload();
+	await expect(nodeByText(page, 'Central idea')).toBeVisible({ timeout: 15_000 });
+	expect(await page.evaluate(() => localStorage.getItem('mindmap:snap'))).toBe('true');
+});
+
+test('help tutorial opens from preferences', async ({ page }) => {
+	await openMap(page);
+
+	const prefs = await openSettings(page, 'Preferences');
+	await prefs.getByRole('button', { name: 'Help & tutorial' }).click();
+
+	const help = page.getByRole('dialog', { name: 'Help and tutorial' });
+	await expect(help).toBeVisible();
+	await help.getByRole('tab', { name: 'Shortcuts' }).click();
+	await expect(help.getByText('Center on root')).toBeVisible();
 });
 
 test('Ctrl+0 recenters on the root node', async ({ page }) => {

@@ -2,33 +2,157 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================================
+   MonoMap design system — "Precision"
+   MonoMap keeps its mono/technical DNA (IBM Plex Mono) but pairs it with a
+   modern sans for display/UI. Dark marketing, light-default app with a
+   polished dark mode. Single refined-blue accent.
+   Source of truth: design-system/MASTER.md
+   ============================================================================ */
+
 :root {
-	--canvas: #f6f6f3;
+	/* --- Typography --- */
+	--font-display: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+	--font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	/* Single global typography boost: every font-size is calc(<base>px + this). */
+	--font-bump: 1px;
+
+	/* --- Surfaces & text --- */
+	--canvas: #f7f7f5;
 	--surface: #ffffff;
-	--surface-2: #ededea;
-	--fg: #1b1b18;
-	--muted: #73736b;
-	--edge: #e2e2db;
-	--accent: #3b82f6;
+	--surface-2: #f0f0ed;
+	--surface-glass: color-mix(in srgb, var(--surface) 78%, transparent);
+	--fg: #16161a;
+	--muted: #6b6b74;
+	--edge: #e5e5df;
+	--border-strong: #d4d4cc;
+
+	/* --- Accent (refined blue) --- */
+	--accent: #2f6bff;
+	--accent-hover: #245ae0;
 	--accent-fg: #ffffff;
+	--accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+	--accent-50: #eef3ff;
+	--accent-100: #dbe6ff;
+	--accent-200: #bcd0ff;
+	--accent-300: #93b2ff;
+	--accent-400: #6d94ff;
+	--accent-500: #2f6bff;
+	--accent-600: #245ae0;
+	--accent-700: #1e48b8;
+	--accent-800: #1c3c93;
+	--accent-900: #1b3675;
+	--ring: color-mix(in srgb, var(--accent) 45%, transparent);
+
+	/* --- Semantic --- */
+	--success: #16a34a;
+	--success-fg: #ffffff;
+	--success-soft: color-mix(in srgb, var(--success) 14%, transparent);
+	--warn: #d97706;
+	--warn-fg: #ffffff;
+	--warn-soft: color-mix(in srgb, var(--warn) 16%, transparent);
+	--danger: #dc2626;
+	--danger-fg: #ffffff;
+	--danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+	--info: var(--accent);
+	--info-soft: var(--accent-soft);
+
+	/* --- Data / chart palette --- */
+	--chart-1: #0f766e;
+	--chart-2: #16a34a;
+	--chart-3: #d97706;
+	--chart-4: #2563eb;
+	--chart-5: #7c3aed;
+	--chart-6: #db2777;
+
+	/* --- Canvas nodes --- */
 	--node-bg: #ffffff;
-	--node-edge: #d9d9d1;
+	--node-edge: #d8d8d1;
 	--node-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+
+	/* --- Radii --- */
+	--r-xs: 4px;
+	--r-sm: 6px;
+	--r-md: 10px;
+	--r-lg: 14px;
+	--r-xl: 20px;
+	--r-pill: 999px;
+
+	/* --- Elevation --- */
+	--shadow-1: 0 1px 2px rgb(0 0 0 / 0.06);
+	--shadow-2: 0 4px 16px -6px rgb(0 0 0 / 0.18);
+	--shadow-3: 0 24px 64px -24px rgb(0 0 0 / 0.28);
+	--shadow-glow:
+		0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+		0 10px 44px -14px color-mix(in srgb, var(--accent) 48%, transparent);
+
+	/* --- Motion --- */
+	--dur-fast: 120ms;
+	--dur: 180ms;
+	--dur-slow: 320ms;
+	--ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+	/* --- Layout --- */
+	--content-max: 1360px;
+
+	/* --- Z-index scale --- */
+	--z-canvas: 0;
+	--z-base: 1;
+	--z-chrome: 20;
+	--z-panel: 30;
+	--z-sidebar: 40;
+	--z-floating: 50;
+	--z-popover: 80;
+	--z-overlay: 90;
+	--z-modal: 100;
+	--z-toast: 120;
+
 	color-scheme: light;
 }
 
 .dark {
-	--canvas: #11110f;
-	--surface: #1b1b18;
-	--surface-2: #242421;
-	--fg: #f1f1ec;
-	--muted: #9c9c93;
-	--edge: #2d2d29;
-	--accent: #5290fa;
-	--accent-fg: #ffffff;
-	--node-bg: #20201d;
-	--node-edge: #35352f;
+	--canvas: #0b0b0d;
+	--surface: #141417;
+	--surface-2: #1c1c20;
+	--surface-glass: color-mix(in srgb, var(--surface) 70%, transparent);
+	--fg: #f2f2f4;
+	--muted: #9a9aa3;
+	--edge: #26262b;
+	--border-strong: #36363d;
+
+	--accent: #6f9bff;
+	--accent-hover: #8fb0ff;
+	--accent-fg: #0b0b0d;
+	--accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+	--ring: color-mix(in srgb, var(--accent) 55%, transparent);
+
+	--success: #34d399;
+	--success-fg: #0b0b0d;
+	--success-soft: color-mix(in srgb, var(--success) 18%, transparent);
+	--warn: #fbbf24;
+	--warn-fg: #0b0b0d;
+	--warn-soft: color-mix(in srgb, var(--warn) 18%, transparent);
+	--danger: #f87171;
+	--danger-fg: #0b0b0d;
+	--danger-soft: color-mix(in srgb, var(--danger) 18%, transparent);
+
+	--chart-1: #66d4cf;
+	--chart-2: #3dd053;
+	--chart-3: #ecab4a;
+	--chart-4: #6483f0;
+	--chart-5: #a78bfa;
+	--chart-6: #ec6882;
+
+	--node-bg: #17171b;
+	--node-edge: #2f2f36;
 	--node-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+
+	--shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+	--shadow-2: 0 4px 18px -6px rgb(0 0 0 / 0.55);
+	--shadow-3: 0 28px 72px -28px rgb(0 0 0 / 0.7);
+
 	color-scheme: dark;
 }
 
@@ -36,13 +160,22 @@
 	--color-canvas: var(--canvas);
 	--color-surface: var(--surface);
 	--color-surface-2: var(--surface-2);
+	--color-surface-glass: var(--surface-glass);
 	--color-fg: var(--fg);
 	--color-muted: var(--muted);
 	--color-edge: var(--edge);
+	--color-border-strong: var(--border-strong);
 	--color-accent: var(--accent);
 	--color-accent-fg: var(--accent-fg);
+	--color-success: var(--success);
+	--color-warn: var(--warn);
+	--color-danger: var(--danger);
+	--color-info: var(--info);
 	--color-node: var(--node-bg);
 	--color-node-edge: var(--node-edge);
+	--font-display: var(--font-display);
+	--font-body: var(--font-body);
+	--font-mono: var(--font-mono);
 }
 
 html,
@@ -54,12 +187,7 @@ body {
 	margin: 0;
 	background: var(--canvas);
 	color: var(--fg);
-	font-family:
-		'Inter',
-		'Segoe UI',
-		system-ui,
-		-apple-system,
-		sans-serif;
+	font-family: var(--font-body);
 	font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
@@ -74,6 +202,19 @@ body {
 
 button {
 	font: inherit;
+}
+
+img {
+	max-width: 100%;
+}
+
+::selection {
+	background: var(--accent-soft);
+}
+
+:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
 }
 
 /* Markdown preview styling (rendered via @html) */
@@ -96,14 +237,14 @@ button {
 .md code {
 	background: var(--surface);
 	padding: 1px 5px;
-	border-radius: 4px;
-	font-size: 12px;
+	border-radius: var(--r-xs);
+	font-size: calc(12px + var(--font-bump));
 }
 
 .md pre {
 	background: var(--surface);
 	padding: 10px;
-	border-radius: 6px;
+	border-radius: var(--r-sm);
 	overflow-x: auto;
 	margin: 0 0 8px;
 }
@@ -120,14 +261,17 @@ button {
 /* Legal (privacy/terms) prose — content is injected via {@render} */
 .legal-body {
 	max-width: 720px;
-	font-size: 15px;
+	font-size: calc(15px + var(--font-bump));
 	line-height: 1.7;
 	color: var(--fg);
+	text-align: left;
 }
 
 .legal-body h2 {
-	font-family: 'IBM Plex Mono', ui-monospace, monospace;
-	font-size: 16px;
+	font-family: var(--font-display);
+	font-size: calc(17px + var(--font-bump));
+	font-weight: 600;
+	letter-spacing: -0.01em;
 	margin: 28px 0 8px;
 }
 
@@ -149,9 +293,20 @@ button {
 }
 
 .legal-body code {
-	font-family: ui-monospace, Menlo, Consolas, monospace;
-	font-size: 13px;
+	font-family: var(--font-mono);
+	font-size: calc(13px + var(--font-bump));
 	background: var(--surface);
 	padding: 1px 5px;
-	border-radius: 4px;
+	border-radius: var(--r-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }

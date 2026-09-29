@@ -31,6 +31,32 @@ test('double-click renames a map inline', async ({ page }) => {
 	expect(await page.evaluate(() => window.__mindmap!.workspace.maps[0].title)).toBe('Renamed');
 });
 
+test('renames keep spaces typed into the sidebar inputs', async ({ page }) => {
+	await openMap(page);
+
+	// Map row
+	await page.getByText('Your First Map', { exact: true }).dblclick();
+	const mapInput = page.locator('input.rename-input');
+	await expect(mapInput).toBeVisible();
+	await mapInput.press('Control+a');
+	await mapInput.pressSequentially('Project Alpha');
+	await mapInput.press('Enter');
+	expect(await page.evaluate(() => window.__mindmap!.workspace.maps[0].title)).toBe('Project Alpha');
+
+	// Board row
+	await page.evaluate(() => window.__mindmap!.workspace.createBoard('Untitled Board'));
+	const row = page.locator('.board-row', { hasText: 'Untitled Board' });
+	await row.locator('.label').dblclick();
+	const boardInput = page.locator('input.rename-input');
+	await expect(boardInput).toBeVisible();
+	await boardInput.press('Control+a');
+	await boardInput.pressSequentially('Sprint Board');
+	await boardInput.press('Enter');
+	expect(
+		await page.evaluate(() => window.__mindmap!.workspace.boards.map((b) => b.title))
+	).toContain('Sprint Board');
+});
+
 test('clicking outside closes the actions menu', async ({ page }) => {
 	await openMap(page);
 
@@ -39,6 +65,17 @@ test('clicking outside closes the actions menu', async ({ page }) => {
 
 	await page.mouse.click(640, 500);
 	await expect(page.getByRole('button', { name: 'Rename', exact: true })).not.toBeVisible();
+});
+
+test('clicking a mind map from the kanban workspace switches back to it', async ({ page }) => {
+	await openMap(page);
+
+	await page.locator('.switch button', { hasText: 'Kanban' }).click();
+	await page.getByText('New Kanban Board').click();
+	await expect(page.locator('.board-title')).toBeVisible();
+
+	await page.locator('.map-row').filter({ hasText: 'Your First Map' }).click();
+	await expect(nodeByText(page, 'Central idea')).toBeVisible();
 });
 
 test('tab bar appears with multiple maps, switches and closes', async ({ page }) => {
@@ -113,4 +150,15 @@ test('map actions rename, duplicate and delete', async ({ page }) => {
 	await page.getByRole('button', { name: `Actions for ${dupTitle}`, exact: true }).click();
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	expect(await page.evaluate(() => window.__mindmap!.workspace.maps.length)).toBe(1);
+});
+
+test('the upgrade deep link opens the sign-in modal and cleans the URL', async ({ page }) => {
+	await page.goto('/workspace?upgrade=1');
+	await expect(nodeByText(page, 'Central idea')).toBeVisible({ timeout: 15_000 });
+
+	const dialog = page.getByRole('dialog', { name: 'Account' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+	await expect(page).toHaveURL(/\/workspace$/);
 });

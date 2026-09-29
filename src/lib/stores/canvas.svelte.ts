@@ -14,6 +14,7 @@ export class CanvasState {
 	zoom = $state(1);
 	viewport = $state({ width: 0, height: 0 });
 	selectedNodeId = $state<string | null>(null);
+	selectedNodeIds = $state<string[]>([]);
 	editingNodeId = $state<string | null>(null);
 	spaceDown = $state(false);
 	sidebarOpen = $state(!ui.isCompact);
@@ -63,6 +64,29 @@ export class CanvasState {
 
 	selectNode(id: string | null): void {
 		this.selectedNodeId = id;
+		this.selectedNodeIds = id ? [id] : [];
+	}
+
+	selectNodes(ids: string[], anchorId?: string | null): void {
+		this.selectedNodeIds = [...ids];
+		this.selectedNodeId = anchorId === undefined ? (ids[0] ?? null) : anchorId;
+	}
+
+	toggleNodeSelection(id: string): void {
+		const index = this.selectedNodeIds.indexOf(id);
+		if (index === -1) {
+			this.selectedNodeIds = [...this.selectedNodeIds, id];
+			if (this.selectedNodeId === null) this.selectedNodeId = id;
+		} else {
+			this.selectedNodeIds = this.selectedNodeIds.filter((selected) => selected !== id);
+			if (this.selectedNodeId === id) {
+				this.selectedNodeId = this.selectedNodeIds[0] ?? null;
+			}
+		}
+	}
+
+	isSelected(id: string): boolean {
+		return this.selectedNodeIds.includes(id);
 	}
 
 	startEditing(id: string): void {
@@ -75,6 +99,7 @@ export class CanvasState {
 
 	clearSelection(): void {
 		this.selectedNodeId = null;
+		this.selectedNodeIds = [];
 		this.editingNodeId = null;
 	}
 }
