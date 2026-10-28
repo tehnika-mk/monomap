@@ -1,0 +1,21 @@
+# Dependencies and build output are produced inside the image.
+node_modules
+build
+.svelte-kit
+
+# Never bake local secrets (Supabase project ref, keys) into an image layer.
+.env
+.env.*
+
+# Repo metadata and local-only tooling.
+.git
+.github
+.vscode
+test-results
+playwright-report
+.deployprobe
+design-system
+video
+audit.md
+*.pdf
+*.log

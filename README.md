@@ -56,6 +56,18 @@ npm test           # unit tests
 npm run test:e2e   # Playwright browser tests
 ```
 
+## Self-hosting
+
+The app builds to static files, so it can be served from any web server. A prebuilt nginx
+image is published to GHCR on releases:
+
+```bash
+docker run -d --name monomap -p 8080:80 ghcr.io/tehnika-mk/monomap:latest
+```
+
+That image runs in local-only mode (no accounts, no sync, no analytics). To build it yourself
+or wire up the optional Supabase backend, see [`deploy/README.md`](deploy/README.md).
+
 ## License / Contact
 
 MonoMap is a product by **Tehnika**. Contact: [hello@tehnika.mk](mailto:hello@tehnika.mk) ·

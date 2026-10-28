@@ -5,7 +5,33 @@ Two independent targets:
 | Target | What | Where it runs | Command |
 | ------ | ---- | ------------- | ------- |
 | Static app | `build/` (SvelteKit, `adapter-static`) | your nginx host (`/home/monomap/htdocs/monomap.app`) | `npm run build` + upload |
+| Docker image | `ghcr.io/tehnika-mk/monomap` (nginx + static build) | any Docker host | `docker compose up -d` |
 | Supabase | DB migrations + Edge Functions | hosted project `<project-ref>` | `npm run deploy:supabase` |
+
+## Docker image
+
+`.github/workflows/docker.yml` publishes a multi-arch image on every push to `main`
+(`:latest`), on `v*` tags (`:v1.2`, …) and on manual dispatch.
+
+```bash
+docker run -d --name monomap -p 8080:80 ghcr.io/tehnika-mk/monomap:latest
+```
+
+The image is built with **placeholder** Supabase credentials, so it runs in local-only mode
+(maps/boards in IndexedDB, no account, no sync) and with analytics disabled. There is no
+runtime configuration: the SvelteKit export bakes `PUBLIC_SUPABASE_*` and `PUBLIC_GA_ID` in
+at build time. To ship cloud sync from your own Supabase project, build it yourself:
+
+```bash
+docker build \
+  --build-arg PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co" \
+  --build-arg PUBLIC_SUPABASE_ANON_KEY="<anon-key>" \
+  -t monomap:local .
+```
+
+`deploy/nginx.docker.conf` is the container's nginx config (SPA fallback to `200.html`).
+After the first publish, the GHCR package must be made **public** (repo → Packages →
+package settings → visibility) or anonymous `docker pull` fails.
 
 The app calls the functions over HTTPS at
 `https://<project-ref>.supabase.co/functions/v1/<name>`, so **app and functions must ship
@@ -61,6 +87,10 @@ npm run deploy:supabase
 ```
 
 `--use-api` bundles functions server-side, so Docker is not required.
+
+`npm run build` reads `.env` (see `vite.config.ts` → `$env/dynamic/public`). Add
+`PUBLIC_GA_ID=G-3WDK5D21PV` there if the production build should keep Google Analytics;
+leave it unset for a privacy-clean build. Analytics is no longer hardcoded in `app.html`.
 
 ### Deploy a single function
 

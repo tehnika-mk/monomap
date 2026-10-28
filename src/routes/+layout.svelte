@@ -1,7 +1,12 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
+	import { initAnalytics } from '$lib/analytics';
 
 	let { children } = $props();
+
+	// Gated on PUBLIC_GA_ID, so self-hosted builds send nothing to Google.
+	onMount(initAnalytics);
 </script>
 
 <svelte:head>
